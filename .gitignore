@@ -1,3 +1,6 @@
+# Editors
+CMakeLists.txt.user*
+
 # Prerequisites
 *.d
 
