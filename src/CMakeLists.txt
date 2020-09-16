@@ -31,6 +31,10 @@ add_library (sctpdc STATIC
     sctpdc.cpp
     sctpdc_datagram.cpp
     sctpdc_stream.cpp
+    sctp_crc32.cpp
+    sctp_crc32.h
+    net_sctp_common.cpp
+    net_sctp_common.h
     )
 target_include_directories(sctpdc PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>

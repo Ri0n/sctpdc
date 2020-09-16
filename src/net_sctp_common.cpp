@@ -22,28 +22,16 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
-#include <QByteArray>
-#include <QtEndian>
+#include "net_sctp_common.h"
+#include "sctp_crc32.h"
 
 namespace SctpDc { namespace Net {
-    class Packet {
-    public:
-        Packet(const QByteArray &data) : data(data) { }
-        bool isValidSctp() const
-        {
-            return data.size() >= 12 && sourcePort() != 0 && destinationPort() != 0 && isChecksumValid();
-        }
-
-        inline quint16 sourcePort() const { return qFromBigEndian<quint16>(data.data()); }
-        inline quint16 destinationPort() const { return qFromBigEndian<quint16>(data.data() + 2); }
-        inline quint32 verificationTag() const { return qFromBigEndian<quint32>(data.data() + 4); }
-        inline quint32 checksum() const { return qFromBigEndian<quint32>(data.data() + 8); }
-        inline void    setChecksum(quint32 cs) { qToBigEndian(cs, data.data() + 8); }
-
-    private:
-        bool isChecksumValid() const;
-
-        QByteArray data;
-    };
-} // namespace Net
-} // namespace SctpDc
+    bool Packet::isChecksumValid() const
+    {
+        auto cs = checksum();
+        const_cast<Packet *>(this)->setChecksum(0);
+        bool valid = sctp_calculate_cksum(data.data(), data.size());
+        const_cast<Packet *>(this)->setChecksum(cs);
+        return valid;
+    }
+}}
