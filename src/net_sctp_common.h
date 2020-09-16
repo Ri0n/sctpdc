@@ -21,3 +21,22 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
+
+#include <QByteArray>
+#include <QtEndian>
+
+namespace SctpDc { namespace Net {
+    class Packet {
+    public:
+        Packet(const QByteArray &data) : data(data) { }
+        bool isValidSctp() const { return data.size() >= 12 && sourcePort() != 0 && destinationPort() != 0; }
+
+        inline quint16 sourcePort() const { qFromBigEndian(data.data()); }
+        inline quint16 destinationPort() const { qFromBigEndian(data.data() + 2); }
+        inline quint32 verificationTag() const { qFromBigEndian(data.data() + 4); }
+        inline quint32 checksum() const { qFromBigEndian(data.data() + 8); }
+
+    private:
+        const QByteArray data;
+    };
+}}
