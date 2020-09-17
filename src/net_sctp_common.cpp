@@ -31,9 +31,9 @@ namespace SctpDc { namespace Net {
         quint32 zero = 0;
         quint32 base = 0xffffffff;
 
-        base = calculate_crc32c(base, static_cast<const unsigned char *>(data.data()), 8);
-        base = calculate_crc32c(base, static_cast<const unsigned char *>(&zero), 4);
-        base = calculate_crc32c(base, static_cast<const unsigned char *>(data.data() + 12), data.size() - 12);
+        base = calculate_crc32c(base, reinterpret_cast<const unsigned char *>(data.constData()), 8);
+        base = calculate_crc32c(base, reinterpret_cast<const unsigned char *>(&zero), 4);
+        base = calculate_crc32c(base, reinterpret_cast<const unsigned char *>(data.constData() + 12), data.size() - 12);
         base = sctp_finalize_crc32c(base);
         return base;
     }

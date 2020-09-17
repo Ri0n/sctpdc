@@ -26,6 +26,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QtEndian>
 
 namespace SctpDc { namespace Net {
+    class Packet;
+    class Chunk {
+    public:
+        Chunk(const QByteArray &data) : data(data) { }
+
+        inline quint8     type() const { return data[0]; }
+        inline quint8     flags() const { return data[1]; }
+        inline quint16    length() const { return data.size(); }
+        inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + 4, data.size() - 4); }
+
+    private:
+        QByteArray data; // usually a raw data ref while iterating over the packet
+    };
+
+    class ChunkIterator {
+    public:
+        Packet &packet;
+        quint32 offset;
+
+        Chunk &        operator*() const;
+        ChunkIterator &operator++()
+        {
+            // TODO implement add
+            return *this;
+        }
+    };
+
     class Packet {
     public:
         Packet(const QByteArray &data) : data(data) { }
@@ -39,6 +66,9 @@ namespace SctpDc { namespace Net {
         inline quint32 verificationTag() const { return qFromBigEndian<quint32>(data.data() + 4); }
         inline quint32 checksum() const { return qFromBigEndian<quint32>(data.data() + 8); }
         inline void    setChecksum(quint32 cs) { qToBigEndian(cs, data.data() + 8); }
+
+        ChunkIterator begin();
+        ChunkIterator end();
 
     private:
         quint32 computeChecksum() const;
