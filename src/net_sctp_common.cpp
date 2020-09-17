@@ -26,12 +26,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sctp_crc32.h"
 
 namespace SctpDc { namespace Net {
-    bool Packet::isChecksumValid() const
+    quint32 Packet::computeChecksum() const
     {
-        auto cs = checksum();
-        const_cast<Packet *>(this)->setChecksum(0);
-        bool valid = sctp_calculate_cksum(data.data(), data.size());
-        const_cast<Packet *>(this)->setChecksum(cs);
-        return valid;
+        quint32 zero = 0;
+        quint32 base = 0xffffffff;
+
+        base = calculate_crc32c(base, static_cast<const unsigned char *>(data.data()), 8);
+        base = calculate_crc32c(base, static_cast<const unsigned char *>(&zero), 4);
+        base = calculate_crc32c(base, static_cast<const unsigned char *>(data.data() + 12), data.size() - 12);
+        base = sctp_finalize_crc32c(base);
+        return base;
     }
 }}

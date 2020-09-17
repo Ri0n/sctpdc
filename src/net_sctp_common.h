@@ -31,7 +31,7 @@ namespace SctpDc { namespace Net {
         Packet(const QByteArray &data) : data(data) { }
         bool isValidSctp() const
         {
-            return data.size() >= 12 && sourcePort() != 0 && destinationPort() != 0 && isChecksumValid();
+            return data.size() >= 12 && sourcePort() != 0 && destinationPort() != 0 && checksum() == computeChecksum();
         }
 
         inline quint16 sourcePort() const { return qFromBigEndian<quint16>(data.data()); }
@@ -41,7 +41,7 @@ namespace SctpDc { namespace Net {
         inline void    setChecksum(quint32 cs) { qToBigEndian(cs, data.data() + 8); }
 
     private:
-        bool isChecksumValid() const;
+        quint32 computeChecksum() const;
 
         QByteArray data;
     };
