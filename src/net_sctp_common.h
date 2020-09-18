@@ -29,12 +29,17 @@ namespace SctpDc { namespace Net {
     class Packet;
     class Chunk {
     public:
-        Chunk(const QByteArray &data) : data(data) { }
+        Chunk(const QByteArray &&data) : data(std::move(data)) { }
 
+        inline bool       isValid() const { return data.size() >= 4 && length() <= data.size(); }
         inline quint8     type() const { return data[0]; }
         inline quint8     flags() const { return data[1]; }
-        inline quint16    length() const { return data.size(); }
-        inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + 4, data.size() - 4); }
+        inline quint16    length() const { return qFromBigEndian<quint16>(data.constData() + 2); }
+        inline QByteArray value() const
+        {
+            int sz = data.size() > 4 ? length() : 0;
+            return sz > 4 ? QByteArray::fromRawData(data.constData() + 4, qMin(sz, data.size())) : QByteArray();
+        }
 
     private:
         QByteArray data; // usually a raw data ref while iterating over the packet
@@ -47,7 +52,8 @@ namespace SctpDc { namespace Net {
 
         Chunk operator*() const
         {
-            return Chunk { QByteArray::fromRawData(packet.data.constData() + offset, packet.data.size() - offset) };
+            int tail = packet.data.size() - offset;
+            return Chunk { QByteArray::fromRawData(packet.data.constData() + offset, tail > 0 ? tail : 0) };
         }
         ChunkIterator &operator++()
         {
