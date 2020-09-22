@@ -25,7 +25,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "net_sctp_common.h"
 #include "sctp_crc32.h"
 
-namespace SctpDc { namespace Net {
+namespace SctpDc { namespace Sctp {
     quint32 Packet::computeChecksum() const
     {
         quint32 zero = 0;

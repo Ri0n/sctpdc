@@ -21,3 +21,24 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
+
+#pragma once
+
+#include "net_sctp_common.h"
+
+namespace SctpDc { namespace Sctp {
+    class DataChunk : public Chunk {
+        inline bool isUnordered() const { return flags() & 0x4; }
+        inline bool isBeginning() const { return flags() & 0x2; }
+        inline bool isEnding() const { return flags() & 0x1; }
+
+        inline void setUnordered(bool value) { setFlag(0x4, value); }
+        inline void setBeginning(bool value) { setFlag(0x2, value); }
+        inline void setEnding(bool value) { setFlag(0x1, value); }
+
+        inline quint32 tsn() const { return qFromBigEndian<quint32>(data.constData() + offset + 4); }
+        inline quint16 streamIdentifier() const { return qFromBigEndian<quint16>(data.constData() + offset + 8); }
+        inline quint16 streamSequenceNumber() const { return qFromBigEndian<quint16>(data.constData() + offset + 10); }
+        inline quint32 payloadProtocol() const { return qFromBigEndian<quint32>(data.constData() + offset + 12); }
+    };
+}}

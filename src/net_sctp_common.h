@@ -25,46 +25,60 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QByteArray>
 #include <QtEndian>
 
-namespace SctpDc { namespace Net {
-    class Packet;
-    class Chunk {
+namespace SctpDc { namespace Sctp {
+    template <class Item, class Data> class Iterator {
     public:
-        Chunk(const QByteArray &&data) : data(std::move(data)) { }
+        Data &data;
+        int   offset;
+        int   size;
 
-        inline bool       isValid() const { return data.size() >= 4 && length() <= data.size(); }
-        inline quint8     type() const { return data[0]; }
-        inline quint8     flags() const { return data[1]; }
-        inline quint16    length() const { return qFromBigEndian<quint16>(data.constData() + 2); }
-        inline QByteArray value() const
+        Item operator*() const
         {
-            int sz = data.size() > 4 ? length() : 0;
-            return sz > 4 ? QByteArray::fromRawData(data.constData() + 4, qMin(sz, data.size())) : QByteArray();
+            int tail = size - offset;
+            return Item { data, offset, tail > 0 ? tail : 0 };
         }
-
-    private:
-        QByteArray data; // usually a raw data ref while iterating over the packet
-    };
-
-    template <class PacketT> class ChunkIterator {
-    public:
-        PacketT &packet;
-        int      offset;
-
-        Chunk operator*() const
-        {
-            int tail = packet.data.size() - offset;
-            return Chunk { QByteArray::fromRawData(packet.data.constData() + offset, tail > 0 ? tail : 0) };
-        }
-        ChunkIterator &operator++()
+        Iterator &operator++()
         {
             // it's up to the caller to take care of safety
-            quint16 size = qFromBigEndian(packet.data.constData() + offset + 2) + 3;
+            quint16 size = qFromBigEndian<quint16>(data.constData() + offset + 2) + 3;
             offset += (size & ~4);
             return *this;
         }
     };
-    using iterator       = ChunkIterator<Packet>;
-    using const_iterator = ChunkIterator<const Packet>;
+
+    class Iterable {
+    public:
+        QByteArray &data;
+        int         offset;
+        int         size;
+
+        inline bool isValid() const
+        {
+            auto tail = data.size() - offset;
+            return tail >= 4 && length() <= tail;
+        }
+        inline quint16    length() const { return qFromBigEndian<quint16>(data.constData() + offset + 2); }
+        inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + offset + 4, length() - 4); }
+    };
+
+    class Chunk : public Iterable {
+    public:
+        inline quint8 type() const { return data[offset]; }
+        inline quint8 flags() const { return data[offset + 1]; }
+        inline void   setFlags(quint8 value) { data[offset + 1] = value; }
+        inline void   setFlag(quint8 flag, bool value)
+        {
+            data[offset + 1] = value ? (data[offset + 1] | flag) : (data[offset + 1] & ~flag);
+        }
+    };
+
+    class Parameter : public Iterable {
+    public:
+        inline quint16 type() const { return qFromBigEndian<quint16>(data.constData() + offset); }
+    };
+
+    using chunk_iterator       = Iterator<Chunk, QByteArray>;
+    using const_chunk_iterator = Iterator<const Chunk, const QByteArray>;
 
     class Packet {
     public:
@@ -80,27 +94,21 @@ namespace SctpDc { namespace Net {
         inline quint32 checksum() const { return qFromBigEndian<quint32>(data.data() + 8); }
         inline void    setChecksum(quint32 cs) { qToBigEndian(cs, data.data() + 8); }
 
-        inline iterator begin()
-        {
-            int start = qMin(12, data.size());
-            return iterator { *this, start };
-        };
-        inline iterator end() { return iterator { *this, data.size() }; }
+        // Note, it's undefined behaviour to iterate over invalid packet
+        inline chunk_iterator begin() { return { data, 12, data.size() }; };
+        inline chunk_iterator end() { return { data, data.size(), 0 }; }
 
-        inline const_iterator begin() const
-        {
-            int start = qMin(12, data.size());
-            return const_iterator { *this, start };
-        };
-        inline const_iterator end() const { return const_iterator { *this, data.size() }; }
+        inline const_chunk_iterator begin() const { return { data, 12, data.size() }; };
+        inline const_chunk_iterator end() const { return { data, data.size(), 0 }; }
 
     private:
-        friend iterator;
-        friend const_iterator;
+        friend chunk_iterator;
+        friend const_chunk_iterator;
 
         quint32 computeChecksum() const;
 
         QByteArray data;
     };
-} // namespace Net
+
+} // namespace Sctp
 } // namespace SctpDc
