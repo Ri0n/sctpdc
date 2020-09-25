@@ -31,6 +31,7 @@ namespace SctpDc { namespace Sctp {
         inline bool isUnordered() const { return flags() & 0x4; }
         inline bool isBeginning() const { return flags() & 0x2; }
         inline bool isEnding() const { return flags() & 0x1; }
+        inline bool isFragmented() const { return (flags() & 0x3) != 0x3; }
 
         inline void setUnordered(bool value) { setFlag(0x4, value); }
         inline void setBeginning(bool value) { setFlag(0x2, value); }
@@ -39,6 +40,18 @@ namespace SctpDc { namespace Sctp {
         inline quint32 tsn() const { return qFromBigEndian<quint32>(data.constData() + offset + 4); }
         inline quint16 streamIdentifier() const { return qFromBigEndian<quint16>(data.constData() + offset + 8); }
         inline quint16 streamSequenceNumber() const { return qFromBigEndian<quint16>(data.constData() + offset + 10); }
-        inline quint32 payloadProtocol() const { return qFromBigEndian<quint32>(data.constData() + offset + 12); }
+
+        inline const QByteArray payloadProtocol() const { return getData(12, 4); }
+        inline void             setPayloadProtocol(const QByteArray &proto) { setData(12, proto); }
+
+        inline const QByteArray userData() const { return getData(16, length() - 16); }
+        inline void             setUserData(const QByteArray &userData)
+        {
+            setData(16, userData);
+            setLength(userData.size() + 16);
+        }
+    };
+
+    class InitChunk : public Chunk {
     };
 }}

@@ -37,4 +37,12 @@ namespace SctpDc { namespace Sctp {
         base = sctp_finalize_crc32c(base);
         return base;
     }
+
+    void Iterable::setData(int relOffset, const QByteArray &newData)
+    {
+        int dstPos = offset + relOffset;
+        ensureCapacity(dstPos + newData.size());
+        data.replace(dstPos, newData.size(), newData);
+    }
+
 }}

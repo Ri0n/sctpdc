@@ -57,7 +57,32 @@ namespace SctpDc { namespace Sctp {
             auto tail = data.size() - offset;
             return tail >= 4 && length() <= tail;
         }
-        inline quint16    length() const { return qFromBigEndian<quint16>(data.constData() + offset + 2); }
+
+        inline void ensureCapacity(int capacity)
+        {
+            if (data.size() < capacity) {
+                data.resize(capacity);
+            }
+        }
+
+        /**
+         * @brief setData sets data at offset + relOffset to newData
+         * @param relOffset
+         * @param newData
+         */
+        inline void             setData(int relOffset, const QByteArray &newData);
+        inline const QByteArray getData(int relOffset, int size) const
+        {
+            return QByteArray::fromRawData(data.constData() + offset + relOffset, size);
+        }
+
+        inline quint16 length() const { return qFromBigEndian<quint16>(data.constData() + offset + 2); }
+        inline void    setLength(quint16 value)
+        {
+            ensureCapacity(4);
+            qToBigEndian(value, data.data() + offset + 2);
+        }
+
         inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + offset + 4, length() - 4); }
     };
 
