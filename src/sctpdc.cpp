@@ -24,10 +24,19 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "sctpdc.h"
 
+#include "net_sctp_common.h"
+
 #include <sctpdc_datagram>
 #include <sctpdc_stream>
 
 namespace SctpDc {
+
+class Connection::Private {
+public:
+    Sctp::Association association;
+};
+
+void Connection::associate() { d->association.associate(); }
 
 StreamChannel *Connection::makeStreamChannel() { return nullptr; }
 

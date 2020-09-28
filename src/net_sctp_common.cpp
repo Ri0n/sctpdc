@@ -23,9 +23,25 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
 #include "net_sctp_common.h"
+#include "net_sctp_chunk.h"
 #include "sctp_crc32.h"
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+#include <QRandomGenerator>
+#endif
+
 namespace SctpDc { namespace Sctp {
+    int Packet::allocChunk(quint8 type, quint16 headerSize, quint16 extraSpace)
+    {
+        int offset = data.size();
+        data.resize(data.size() + (headerSize + extraSpace + 3) & ~3);
+        data[offset]      = type;
+        data[offset + 1]  = 0;
+        quint16 chunkSize = quint16(headerSize + extraSpace);
+        qToBigEndian(chunkSize, data.data() + offset + 2);
+        return offset;
+    }
+
     quint32 Packet::computeChecksum() const
     {
         quint32 zero = 0;
@@ -44,5 +60,27 @@ namespace SctpDc { namespace Sctp {
         ensureCapacity(dstPos + newData.size());
         data.replace(dstPos, newData.size(), newData);
     }
+
+    Association::Association() { }
+
+    void Association::associate()
+    {
+        if (state_ != State::Closed) {
+            qWarning("can't started associate on unclosed connection");
+            return;
+        }
+
+        Packet initPacket;
+        auto   chunk = initPacket.appendChunk<InitChunk>();
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+        chunk.setInitiateTag(QRandomGenerator::global()->generate());
+#else
+        chunk.setInitiateTag(quint32(qrand());
+#endif
+    }
+
+    QByteArray Association::readOutgoing() { }
+
+    void Association::writeIncoming(const QByteArray &data) { }
 
 }}

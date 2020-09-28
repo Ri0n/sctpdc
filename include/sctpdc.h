@@ -22,6 +22,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
+#pragma once
+
 #include <QAbstractSocket>
 
 namespace SctpDc {
@@ -33,7 +35,17 @@ class Connection : public QObject {
 public:
     Connection(QObject *parent);
 
+    void associate();
+
     StreamChannel *  makeStreamChannel();
     DatagramChannel *makeDatagramChannel();
+
+signals:
+    void connected();
+    void disconnected();
+
+private:
+    class Private;
+    std::unique_ptr<Private> d;
 };
 }

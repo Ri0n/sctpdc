@@ -22,6 +22,8 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
+#pragma once
+
 #include <QObject>
 
 namespace SctpDc {
@@ -31,10 +33,8 @@ public:
     DatagramChannel(QObject *parent);
 
 signals:
-    void connected();
-    void disconnected();
+
     void errorOccured();
     void readyRead();
-    void readyReadOutgoing();
 };
 }

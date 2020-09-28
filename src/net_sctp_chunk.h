@@ -28,6 +28,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 namespace SctpDc { namespace Sctp {
     class DataChunk : public Chunk {
+        constexpr static quint8  Type          = 0;
+        constexpr static quint16 MinHeaderSize = 16;
+
+        inline bool isValid() const { return Chunk::isValid(16); }
+
         inline bool isUnordered() const { return flags() & 0x4; }
         inline bool isBeginning() const { return flags() & 0x2; }
         inline bool isEnding() const { return flags() & 0x1; }
@@ -53,5 +58,20 @@ namespace SctpDc { namespace Sctp {
     };
 
     class InitChunk : public Chunk {
+    public:
+        constexpr static quint8 Type          = 1;
+        constexpr static int    MinHeaderSize = 16;
+
+        inline bool isValid() const { return Chunk::isValid(16); }
+
+        inline quint32 initiateTag() const { return qFromBigEndian<quint32>(data.constData() + offset + 4); }
+        inline void    setInitiateTag(quint32 tag) { qToBigEndian(tag, data.data() + offset + 4); }
+
+        inline quint16 outboundStreamsCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 8); }
+        inline quint16 inboundStreamCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 10); }
+        inline quint32 initialTsn() const { return qFromBigEndian<quint32>(data.constData() + offset + 12); }
+
+        inline parameter_iterator       begin() { return Chunk::begin<InitChunk>(); }
+        inline const_parameter_iterator begin() const { return Chunk::begin<InitChunk>(); }
     };
 }}

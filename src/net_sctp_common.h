@@ -22,7 +22,10 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
+#pragma once
+
 #include <QByteArray>
+#include <QObject>
 #include <QtEndian>
 
 namespace SctpDc { namespace Sctp {
@@ -52,10 +55,10 @@ namespace SctpDc { namespace Sctp {
         int         offset;
         int         size;
 
-        inline bool isValid() const
+        inline bool isValid(int headerSize = 4) const
         {
             auto tail = data.size() - offset;
-            return tail >= 4 && length() <= tail;
+            return tail >= headerSize && length() <= tail;
         }
 
         inline void ensureCapacity(int capacity)
@@ -86,6 +89,14 @@ namespace SctpDc { namespace Sctp {
         inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + offset + 4, length() - 4); }
     };
 
+    class Parameter : public Iterable {
+    public:
+        inline quint16 type() const { return qFromBigEndian<quint16>(data.constData() + offset); }
+    };
+
+    using parameter_iterator       = Iterator<Parameter, QByteArray>;
+    using const_parameter_iterator = Iterator<const Parameter, const QByteArray>;
+
     class Chunk : public Iterable {
     public:
         inline quint8 type() const { return data[offset]; }
@@ -95,11 +106,15 @@ namespace SctpDc { namespace Sctp {
         {
             data[offset + 1] = value ? (data[offset + 1] | flag) : (data[offset + 1] & ~flag);
         }
-    };
 
-    class Parameter : public Iterable {
-    public:
-        inline quint16 type() const { return qFromBigEndian<quint16>(data.constData() + offset); }
+        inline parameter_iterator       end() { return { data, data.size(), 0 }; }
+        inline const_parameter_iterator end() const { return { data, data.size(), 0 }; }
+
+        template <class T> parameter_iterator       begin() { return { data, offset + T::MinHeaderSize, data.size() }; }
+        template <class T> const_parameter_iterator begin() const
+        {
+            return { data, offset + T::MinHeaderSize, data.size() };
+        }
     };
 
     using chunk_iterator       = Iterator<Chunk, QByteArray>;
@@ -107,6 +122,9 @@ namespace SctpDc { namespace Sctp {
 
     class Packet {
     public:
+        constexpr static int HeaderSize = 12;
+
+        Packet() = default;
         Packet(const QByteArray &data) : data(data) { }
         bool isValidSctp() const
         {
@@ -120,11 +138,20 @@ namespace SctpDc { namespace Sctp {
         inline void    setChecksum(quint32 cs) { qToBigEndian(cs, data.data() + 8); }
 
         // Note, it's undefined behaviour to iterate over invalid packet
-        inline chunk_iterator begin() { return { data, 12, data.size() }; };
+        inline chunk_iterator begin() { return { data, HeaderSize, data.size() }; };
         inline chunk_iterator end() { return { data, data.size(), 0 }; }
 
-        inline const_chunk_iterator begin() const { return { data, 12, data.size() }; };
+        inline const_chunk_iterator begin() const { return { data, HeaderSize, data.size() }; };
         inline const_chunk_iterator end() const { return { data, data.size(), 0 }; }
+
+        // extra space for tlv parameters or payload
+        // header size + extraSpace will be set as chunk length
+        int                  allocChunk(quint8 type, quint16 headerSize, quint16 extraSpace);
+        template <class T> T appendChunk(quint16 extraSpace = 0)
+        {
+            auto offset = allocChunk(T::Type, T::MinHeaderSize, extraSpace);
+            return T { data, offset, data.size() };
+        }
 
     private:
         friend chunk_iterator;
@@ -133,6 +160,36 @@ namespace SctpDc { namespace Sctp {
         quint32 computeChecksum() const;
 
         QByteArray data;
+    };
+
+    class Association : public QObject {
+        Q_OBJECT
+    public:
+        enum class State {
+            Closed,
+            CookieWait,
+            CookieEchoed,
+            Established,
+            ShutdownPending,
+            ShutdownSentReceived,
+            ShutdownAckSent
+        };
+
+        Association();
+
+        void associate();
+
+        QByteArray readOutgoing();
+        void       writeIncoming(const QByteArray &data);
+
+    signals:
+        void readyReadOutgoing();
+
+    private:
+        State                     state_;
+        std::map<quint32, Packet> incomingPackets_;
+        std::map<quint32, Packet> outgoingPackets_;
+        quint32                   tsn = 0;
     };
 
 } // namespace Sctp
