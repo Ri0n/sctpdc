@@ -24,12 +24,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include "net_sctp_common.h"
+#include "sctp_common.h"
 
 namespace SctpDc { namespace Sctp {
     class DataChunk : public Chunk {
+    public:
         constexpr static quint8  Type          = 0;
         constexpr static quint16 MinHeaderSize = 16;
+
+        using Chunk::Chunk;
 
         inline bool isValid() const { return Chunk::isValid(16); }
 
@@ -61,6 +64,8 @@ namespace SctpDc { namespace Sctp {
     public:
         constexpr static quint8 Type          = 1;
         constexpr static int    MinHeaderSize = 16;
+
+        using Chunk::Chunk;
 
         inline bool isValid() const { return Chunk::isValid(16); }
 

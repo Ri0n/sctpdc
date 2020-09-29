@@ -22,46 +22,26 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
-#include "net_sctp_common.h"
-#include "net_sctp_chunk.h"
-#include "sctp_crc32.h"
+#include "sctp_association.h"
+#include "sctp_chunk.h"
 
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
 #include <QRandomGenerator>
 #endif
 
 namespace SctpDc { namespace Sctp {
-    int Packet::allocChunk(quint8 type, quint16 headerSize, quint16 extraSpace)
+    void Association::populateHeader(Packet &packet)
     {
-        int offset = data.size();
-        data.resize(data.size() + (headerSize + extraSpace + 3) & ~3);
-        data[offset]      = type;
-        data[offset + 1]  = 0;
-        quint16 chunkSize = quint16(headerSize + extraSpace);
-        qToBigEndian(chunkSize, data.data() + offset + 2);
-        return offset;
+        packet.setVerificationTag(verificationTag);
+        packet.setSourcePort(sourcePort);
+        packet.setDestinationPort(destinationPort);
+        packet.setChecksum();
     }
 
-    quint32 Packet::computeChecksum() const
+    Association::Association(quint16 sourcePort, quint16 destinationPort) :
+        sourcePort(sourcePort), destinationPort(destinationPort)
     {
-        quint32 zero = 0;
-        quint32 base = 0xffffffff;
-
-        base = calculate_crc32c(base, reinterpret_cast<const unsigned char *>(data.constData()), 8);
-        base = calculate_crc32c(base, reinterpret_cast<const unsigned char *>(&zero), 4);
-        base = calculate_crc32c(base, reinterpret_cast<const unsigned char *>(data.constData() + 12), data.size() - 12);
-        base = sctp_finalize_crc32c(base);
-        return base;
     }
-
-    void Iterable::setData(int relOffset, const QByteArray &newData)
-    {
-        int dstPos = offset + relOffset;
-        ensureCapacity(dstPos + newData.size());
-        data.replace(dstPos, newData.size(), newData);
-    }
-
-    Association::Association() { }
 
     void Association::associate()
     {
@@ -77,9 +57,20 @@ namespace SctpDc { namespace Sctp {
 #else
         chunk.setInitiateTag(quint32(qrand());
 #endif
+        populateHeader(initPacket);
+        outgoingPackets_.push_back(std::move(initPacket));
+        emit readyReadOutgoing();
     }
 
-    QByteArray Association::readOutgoing() { }
+    QByteArray Association::readOutgoing()
+    {
+        if (outgoingPackets_.empty()) {
+            return QByteArray();
+        }
+        QByteArray data = outgoingPackets_.front().takeData();
+        outgoingPackets_.pop_front();
+        return data;
+    }
 
     void Association::writeIncoming(const QByteArray &data) { }
 

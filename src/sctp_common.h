@@ -55,6 +55,8 @@ namespace SctpDc { namespace Sctp {
         int         offset;
         int         size;
 
+        constexpr Iterable(QByteArray &data, int offset, int size) : data(data), offset(offset), size(size) { }
+
         inline bool isValid(int headerSize = 4) const
         {
             auto tail = data.size() - offset;
@@ -99,6 +101,8 @@ namespace SctpDc { namespace Sctp {
 
     class Chunk : public Iterable {
     public:
+        using Iterable::Iterable;
+
         inline quint8 type() const { return data[offset]; }
         inline quint8 flags() const { return data[offset + 1]; }
         inline void   setFlags(quint8 value) { data[offset + 1] = value; }
@@ -125,24 +129,28 @@ namespace SctpDc { namespace Sctp {
         constexpr static int HeaderSize = 12;
 
         Packet() = default;
-        Packet(const QByteArray &data) : data(data) { }
+        Packet(const QByteArray &data) : data_(data) { }
         bool isValidSctp() const
         {
-            return data.size() >= 12 && sourcePort() != 0 && destinationPort() != 0 && checksum() == computeChecksum();
+            return data_.size() >= 12 && sourcePort() != 0 && destinationPort() != 0 && checksum() == computeChecksum();
         }
 
-        inline quint16 sourcePort() const { return qFromBigEndian<quint16>(data.data()); }
-        inline quint16 destinationPort() const { return qFromBigEndian<quint16>(data.data() + 2); }
-        inline quint32 verificationTag() const { return qFromBigEndian<quint32>(data.data() + 4); }
-        inline quint32 checksum() const { return qFromBigEndian<quint32>(data.data() + 8); }
-        inline void    setChecksum(quint32 cs) { qToBigEndian(cs, data.data() + 8); }
+        inline quint16 sourcePort() const { return qFromBigEndian<quint16>(data_.data()); }
+        inline void    setSourcePort(quint16 port) { qToBigEndian(port, data_.data()); }
+        inline quint16 destinationPort() const { return qFromBigEndian<quint16>(data_.data() + 2); }
+        inline void    setDestinationPort(quint16 port) { qToBigEndian(port, data_.data() + 2); }
+        inline quint32 verificationTag() const { return qFromBigEndian<quint32>(data_.data() + 4); }
+        inline void    setVerificationTag(quint32 vt) { qToBigEndian(vt, data_.data() + 4); }
+        inline quint32 checksum() const { return qFromBigEndian<quint32>(data_.data() + 8); }
+        inline void    setChecksum(quint32 cs) { qToBigEndian(cs, data_.data() + 8); }
+        inline void    setChecksum() { setChecksum(computeChecksum()); }
 
         // Note, it's undefined behaviour to iterate over invalid packet
-        inline chunk_iterator begin() { return { data, HeaderSize, data.size() }; };
-        inline chunk_iterator end() { return { data, data.size(), 0 }; }
+        inline chunk_iterator begin() { return { data_, HeaderSize, data_.size() }; };
+        inline chunk_iterator end() { return { data_, data_.size(), 0 }; }
 
-        inline const_chunk_iterator begin() const { return { data, HeaderSize, data.size() }; };
-        inline const_chunk_iterator end() const { return { data, data.size(), 0 }; }
+        inline const_chunk_iterator begin() const { return { data_, HeaderSize, data_.size() }; };
+        inline const_chunk_iterator end() const { return { data_, data_.size(), 0 }; }
 
         // extra space for tlv parameters or payload
         // header size + extraSpace will be set as chunk length
@@ -150,7 +158,13 @@ namespace SctpDc { namespace Sctp {
         template <class T> T appendChunk(quint16 extraSpace = 0)
         {
             auto offset = allocChunk(T::Type, T::MinHeaderSize, extraSpace);
-            return T { data, offset, data.size() };
+            return T { this->data_, offset, this->data_.size() };
+        }
+
+        inline QByteArray takeData()
+        {
+            QByteArray d(std::move(data_));
+            return d;
         }
 
     private:
@@ -159,37 +173,7 @@ namespace SctpDc { namespace Sctp {
 
         quint32 computeChecksum() const;
 
-        QByteArray data;
-    };
-
-    class Association : public QObject {
-        Q_OBJECT
-    public:
-        enum class State {
-            Closed,
-            CookieWait,
-            CookieEchoed,
-            Established,
-            ShutdownPending,
-            ShutdownSentReceived,
-            ShutdownAckSent
-        };
-
-        Association();
-
-        void associate();
-
-        QByteArray readOutgoing();
-        void       writeIncoming(const QByteArray &data);
-
-    signals:
-        void readyReadOutgoing();
-
-    private:
-        State                     state_;
-        std::map<quint32, Packet> incomingPackets_;
-        std::map<quint32, Packet> outgoingPackets_;
-        quint32                   tsn = 0;
+        QByteArray data_;
     };
 
 } // namespace Sctp

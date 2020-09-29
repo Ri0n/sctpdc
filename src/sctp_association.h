@@ -22,10 +22,53 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #endif
 
-#include "sctp_association.h"
+#pragma once
 
-int main()
-{
-    SctpDc::Sctp::Association assoc(1, 2);
-    assoc.associate();
-}
+#include "sctp_common.h"
+
+#include <QByteArray>
+#include <QObject>
+#include <QtEndian>
+
+#include <deque>
+
+namespace SctpDc { namespace Sctp {
+
+    class Association : public QObject {
+        Q_OBJECT
+    public:
+        enum class State {
+            Closed,
+            CookieWait,
+            CookieEchoed,
+            Established,
+            ShutdownPending,
+            ShutdownSentReceived,
+            ShutdownAckSent
+        };
+
+        Association(quint16 sourcePort, quint16 destinationPort);
+
+        void associate();
+
+        QByteArray readOutgoing();
+        void       writeIncoming(const QByteArray &data);
+
+    signals:
+        void readyReadOutgoing();
+
+    private:
+        void populateHeader(Packet &packet);
+
+    private:
+        State              state_ = State::Closed;
+        std::deque<Packet> incomingPackets_;
+        std::deque<Packet> outgoingPackets_;
+        quint32            tsn             = 0;
+        quint32            verificationTag = 0;
+        quint16            sourcePort;
+        quint16            destinationPort;
+    };
+
+} // namespace Sctp
+} // namespace SctpDc

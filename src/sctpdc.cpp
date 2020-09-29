@@ -24,7 +24,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "sctpdc.h"
 
-#include "net_sctp_common.h"
+#include "sctp_association.h"
 
 #include <sctpdc_datagram>
 #include <sctpdc_stream>
