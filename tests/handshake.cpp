@@ -28,4 +28,5 @@ int main()
 {
     SctpDc::Sctp::Association assoc(1, 2);
     assoc.associate();
+    auto data = assoc.readOutgoing();
 }

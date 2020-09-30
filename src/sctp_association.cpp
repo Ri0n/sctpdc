@@ -32,14 +32,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace SctpDc { namespace Sctp {
     void Association::populateHeader(Packet &packet)
     {
-        packet.setVerificationTag(verificationTag);
-        packet.setSourcePort(sourcePort);
-        packet.setDestinationPort(destinationPort);
+        packet.setVerificationTag(verificationTag_);
+        packet.setSourcePort(sourcePort_);
+        packet.setDestinationPort(destinationPort_);
         packet.setChecksum();
     }
 
     Association::Association(quint16 sourcePort, quint16 destinationPort) :
-        sourcePort(sourcePort), destinationPort(destinationPort)
+        sourcePort_(sourcePort), destinationPort_(destinationPort)
     {
     }
 
@@ -52,11 +52,19 @@ namespace SctpDc { namespace Sctp {
 
         Packet initPacket;
         auto   chunk = initPacket.appendChunk<InitChunk>();
+
+        quint32 tag;
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-        chunk.setInitiateTag(QRandomGenerator::global()->generate());
+        tag = QRandomGenerator::global()->generate();
 #else
-        chunk.setInitiateTag(quint32(qrand());
+        tag = quint32(qrand());
 #endif
+        chunk.setInitiateTag(tag);
+        chunk.setInitialTsn(tag);
+        chunk.setReceiverWindowCredit(receiverWindowCredit_);
+        chunk.setInitialTsn(tsn_);
+        chunk.setInboundStreamsCount(inboundStreamsCount_);
+        chunk.setOutboundStreamsCount(outboundStreamsCount_);
         populateHeader(initPacket);
         outgoingPackets_.push_back(std::move(initPacket));
         emit readyReadOutgoing();
@@ -72,6 +80,15 @@ namespace SctpDc { namespace Sctp {
         return data;
     }
 
-    void Association::writeIncoming(const QByteArray &data) { }
+    void Association::writeIncoming(const QByteArray &data)
+    {
+        const Packet pkt(data);
+        if (!pkt.isValidSctp()) {
+            error_ = Error::ProtocolViolation;
+            emit errorOccured();
+            return;
+        }
+        // for (const auto &chunk : pkt) { }
+    }
 
 }}

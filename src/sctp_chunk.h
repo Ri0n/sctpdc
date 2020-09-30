@@ -72,9 +72,17 @@ namespace SctpDc { namespace Sctp {
         inline quint32 initiateTag() const { return qFromBigEndian<quint32>(data.constData() + offset + 4); }
         inline void    setInitiateTag(quint32 tag) { qToBigEndian(tag, data.data() + offset + 4); }
 
-        inline quint16 outboundStreamsCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 8); }
-        inline quint16 inboundStreamCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 10); }
-        inline quint32 initialTsn() const { return qFromBigEndian<quint32>(data.constData() + offset + 12); }
+        inline quint32 receiverWindowCredit() const { return qFromBigEndian<quint32>(data.constData() + offset + 8); }
+        inline void    setReceiverWindowCredit(quint32 tag) { qToBigEndian(tag, data.data() + offset + 8); }
+
+        inline quint16 outboundStreamsCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 12); }
+        inline void    setOutboundStreamsCount(quint16 count) { qToBigEndian(count, data.data() + offset + 12); }
+
+        inline quint16 inboundStreamsCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 14); }
+        inline void    setInboundStreamsCount(quint16 count) { qToBigEndian(count, data.data() + offset + 14); }
+
+        inline quint32 initialTsn() const { return qFromBigEndian<quint32>(data.constData() + offset + 16); }
+        inline void    setInitialTsn(quint32 tsn) { qToBigEndian(tsn, data.data() + offset + 16); }
 
         inline parameter_iterator       begin() { return Chunk::begin<InitChunk>(); }
         inline const_parameter_iterator begin() const { return Chunk::begin<InitChunk>(); }

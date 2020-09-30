@@ -47,6 +47,8 @@ namespace SctpDc { namespace Sctp {
             ShutdownAckSent
         };
 
+        enum class Error { None, ProtocolViolation };
+
         Association(quint16 sourcePort, quint16 destinationPort);
 
         void associate();
@@ -56,6 +58,7 @@ namespace SctpDc { namespace Sctp {
 
     signals:
         void readyReadOutgoing();
+        void errorOccured();
 
     private:
         void populateHeader(Packet &packet);
@@ -64,10 +67,14 @@ namespace SctpDc { namespace Sctp {
         State              state_ = State::Closed;
         std::deque<Packet> incomingPackets_;
         std::deque<Packet> outgoingPackets_;
-        quint32            tsn             = 0;
-        quint32            verificationTag = 0;
-        quint16            sourcePort;
-        quint16            destinationPort;
+        quint32            tsn_                  = 0;
+        quint32            verificationTag_      = 0;
+        quint16            sourcePort_           = 0;
+        quint16            destinationPort_      = 0;
+        quint16            inboundStreamsCount_  = 65535;
+        quint16            outboundStreamsCount_ = 65535;
+        quint32            receiverWindowCredit_ = 512 * 1024;
+        Error              error_                = Error::None;
     };
 
 } // namespace Sctp
