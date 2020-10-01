@@ -41,6 +41,12 @@ namespace SctpDc { namespace Sctp {
     Association::Association(quint16 sourcePort, quint16 destinationPort) :
         sourcePort_(sourcePort), destinationPort_(destinationPort)
     {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+        tag_ = QRandomGenerator::global()->generate();
+#else
+        tag_ = quint32(qrand());
+#endif
+        tsn_ = tag_;
     }
 
     void Association::associate()
@@ -53,14 +59,7 @@ namespace SctpDc { namespace Sctp {
         Packet initPacket;
         auto   chunk = initPacket.appendChunk<InitChunk>();
 
-        quint32 tag;
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-        tag = QRandomGenerator::global()->generate();
-#else
-        tag = quint32(qrand());
-#endif
-        chunk.setInitiateTag(tag);
-        chunk.setInitialTsn(tag);
+        chunk.setInitiateTag(tag_);
         chunk.setReceiverWindowCredit(receiverWindowCredit_);
         chunk.setInitialTsn(tsn_);
         chunk.setInboundStreamsCount(inboundStreamsCount_);
@@ -88,7 +87,7 @@ namespace SctpDc { namespace Sctp {
             emit errorOccured();
             return;
         }
-        // for (const auto &chunk : pkt) { }
+        for (const auto &chunk : pkt) { }
     }
 
 }}

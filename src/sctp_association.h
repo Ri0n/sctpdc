@@ -67,6 +67,7 @@ namespace SctpDc { namespace Sctp {
         State              state_ = State::Closed;
         std::deque<Packet> incomingPackets_;
         std::deque<Packet> outgoingPackets_;
+        quint32            tag_                  = 0;
         quint32            tsn_                  = 0;
         quint32            verificationTag_      = 0;
         quint16            sourcePort_           = 0;

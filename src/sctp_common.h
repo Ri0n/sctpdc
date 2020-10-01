@@ -28,25 +28,33 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QObject>
 #include <QtEndian>
 
+#include <type_traits>
+
 namespace SctpDc { namespace Sctp {
     template <class Item, class Data> class Iterator {
     public:
-        Data &data;
-        int   offset;
-        int   size;
+        typedef std::remove_cv_t<Data> DataNC;
 
-        Item operator*() const
+        Data &data;      // reference to the packet data
+        int   maxOffset; // size of packet for a chunk or size of chunk for a parameter
+        int   offset;    // start of the chunk/parameter
+        int   size;      // size of the chunk/parameter
+
+        const Item operator*() const { return Item { const_cast<DataNC &>(data), offset, size }; }
+        Iterator & operator++()
         {
-            int tail = size - offset;
-            return Item { data, offset, tail > 0 ? tail : 0 };
-        }
-        Iterator &operator++()
-        {
-            // it's up to the caller to take care of safety
-            quint16 size = qFromBigEndian<quint16>(data.constData() + offset + 2) + 3;
+            if (size < 4) {
+                offset = maxOffset;
+                return *this;
+            }
             offset += (size & ~4);
+            if (offset == maxOffset || (maxOffset - offset) < 4
+                || (size = qFromBigEndian<quint16>(data.constData() + offset + 2)) + offset > maxOffset) {
+                size = 0;
+            }
             return *this;
         }
+        bool operator!=(const Iterator &other) { return offset != other.offset; }
     };
 
     class Iterable {
@@ -75,7 +83,7 @@ namespace SctpDc { namespace Sctp {
          * @param relOffset
          * @param newData
          */
-        inline void             setData(int relOffset, const QByteArray &newData);
+        void                    setData(int relOffset, const QByteArray &newData);
         inline const QByteArray getData(int relOffset, int size) const
         {
             return QByteArray::fromRawData(data.constData() + offset + relOffset, size);
@@ -111,13 +119,16 @@ namespace SctpDc { namespace Sctp {
             data[offset + 1] = value ? (data[offset + 1] | flag) : (data[offset + 1] & ~flag);
         }
 
-        inline parameter_iterator       end() { return { data, data.size(), 0 }; }
-        inline const_parameter_iterator end() const { return { data, data.size(), 0 }; }
+        inline parameter_iterator       end() { return { data, offset + size, data.size(), 0 }; }
+        inline const_parameter_iterator end() const { return { data, offset + size, data.size(), 0 }; }
 
-        template <class T> parameter_iterator       begin() { return { data, offset + T::MinHeaderSize, data.size() }; }
+        template <class T> parameter_iterator begin()
+        {
+            return { data, offset + size, offset + T::MinHeaderSize, data.size() };
+        }
         template <class T> const_parameter_iterator begin() const
         {
-            return { data, offset + T::MinHeaderSize, data.size() };
+            return { data, offset + size, offset + T::MinHeaderSize, data.size() };
         }
     };
 
@@ -146,11 +157,11 @@ namespace SctpDc { namespace Sctp {
         inline void    setChecksum() { setChecksum(computeChecksum()); }
 
         // Note, it's undefined behaviour to iterate over invalid packet
-        inline chunk_iterator begin() { return { data_, HeaderSize, data_.size() }; };
-        inline chunk_iterator end() { return { data_, data_.size(), 0 }; }
+        inline chunk_iterator begin() { return { data_, data_.size(), HeaderSize, data_.size() }; };
+        inline chunk_iterator end() { return { data_, data_.size(), data_.size(), 0 }; }
 
-        inline const_chunk_iterator begin() const { return { data_, HeaderSize, data_.size() }; };
-        inline const_chunk_iterator end() const { return { data_, data_.size(), 0 }; }
+        inline const_chunk_iterator begin() const { return { data_, data_.size(), HeaderSize, data_.size() }; };
+        inline const_chunk_iterator end() const { return { data_, data_.size(), data_.size(), 0 }; }
 
         // extra space for tlv parameters or payload
         // header size + extraSpace will be set as chunk length
