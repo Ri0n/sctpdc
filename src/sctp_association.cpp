@@ -87,7 +87,17 @@ namespace SctpDc { namespace Sctp {
             emit errorOccured();
             return;
         }
-        for (const auto &chunk : pkt) { }
+        for (const auto &chunk : pkt) {
+            if (!chunk.isValid()) {
+                switch (chunk.type()) {
+                case InitChunk::Type:
+                    incomingInit(static_cast<const InitChunk &>(chunk));
+                    break;
+                }
+            }
+        }
     }
+
+    void Association::incomingInit(const InitChunk &chunk) { }
 
 }}

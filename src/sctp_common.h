@@ -36,9 +36,18 @@ namespace SctpDc { namespace Sctp {
         typedef std::remove_cv_t<Data> DataNC;
 
         Data &data;      // reference to the packet data
-        int   maxOffset; // size of packet for a chunk or size of chunk for a parameter
         int   offset;    // start of the chunk/parameter
+        int   maxOffset; // size of packet for a chunk or size of chunk for a parameter
         int   size;      // size of the chunk/parameter
+
+        Iterator(Data &data, int offset, int maxOffset) : data(data), offset(offset), maxOffset(maxOffset)
+        {
+            if ((maxOffset - offset) < 4 || (fetchSize() + offset) > maxOffset) {
+                size = 0;
+            }
+        }
+
+        inline quint16 fetchSize() { return (size = qFromBigEndian<quint16>(data.constData() + offset + 2)); }
 
         const Item operator*() const { return Item { const_cast<DataNC &>(data), offset, size }; }
         Iterator & operator++()
@@ -48,8 +57,7 @@ namespace SctpDc { namespace Sctp {
                 return *this;
             }
             offset += (size & ~4);
-            if (offset == maxOffset || (maxOffset - offset) < 4
-                || (size = qFromBigEndian<quint16>(data.constData() + offset + 2)) + offset > maxOffset) {
+            if ((maxOffset - offset) < 4 || (fetchSize() + offset) > maxOffset) {
                 size = 0;
             }
             return *this;
@@ -65,11 +73,7 @@ namespace SctpDc { namespace Sctp {
 
         constexpr Iterable(QByteArray &data, int offset, int size) : data(data), offset(offset), size(size) { }
 
-        inline bool isValid(int headerSize = 4) const
-        {
-            auto tail = data.size() - offset;
-            return tail >= headerSize && length() <= tail;
-        }
+        inline bool isValid(int headerSize = 4) const { return size >= headerSize; }
 
         inline void ensureCapacity(int capacity)
         {
@@ -119,16 +123,13 @@ namespace SctpDc { namespace Sctp {
             data[offset + 1] = value ? (data[offset + 1] | flag) : (data[offset + 1] & ~flag);
         }
 
-        inline parameter_iterator       end() { return { data, offset + size, data.size(), 0 }; }
-        inline const_parameter_iterator end() const { return { data, offset + size, data.size(), 0 }; }
+        inline parameter_iterator       end() { return { data, offset + size, offset + size }; }
+        inline const_parameter_iterator end() const { return { data, offset + size, offset + size }; }
 
-        template <class T> parameter_iterator begin()
-        {
-            return { data, offset + size, offset + T::MinHeaderSize, data.size() };
-        }
+        template <class T> parameter_iterator begin() { return { data, offset + T::MinHeaderSize, offset + size }; }
         template <class T> const_parameter_iterator begin() const
         {
-            return { data, offset + size, offset + T::MinHeaderSize, data.size() };
+            return { data, offset + T::MinHeaderSize, offset + size };
         }
     };
 
@@ -157,11 +158,11 @@ namespace SctpDc { namespace Sctp {
         inline void    setChecksum() { setChecksum(computeChecksum()); }
 
         // Note, it's undefined behaviour to iterate over invalid packet
-        inline chunk_iterator begin() { return { data_, data_.size(), HeaderSize, data_.size() }; };
-        inline chunk_iterator end() { return { data_, data_.size(), data_.size(), 0 }; }
+        inline chunk_iterator begin() { return { data_, HeaderSize, data_.size() }; }
+        inline chunk_iterator end() { return { data_, data_.size(), data_.size() }; }
 
-        inline const_chunk_iterator begin() const { return { data_, data_.size(), HeaderSize, data_.size() }; };
-        inline const_chunk_iterator end() const { return { data_, data_.size(), data_.size(), 0 }; }
+        inline const_chunk_iterator begin() const { return { data_, HeaderSize, data_.size() }; }
+        inline const_chunk_iterator end() const { return { data_, data_.size(), data_.size() }; }
 
         // extra space for tlv parameters or payload
         // header size + extraSpace will be set as chunk length
