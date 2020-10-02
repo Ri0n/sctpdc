@@ -87,4 +87,9 @@ namespace SctpDc { namespace Sctp {
         inline parameter_iterator       begin() { return Chunk::begin<InitChunk>(); }
         inline const_parameter_iterator begin() const { return Chunk::begin<InitChunk>(); }
     };
+
+    class InitAckChunk : public InitChunk {
+    public:
+        constexpr static quint8 Type = 2;
+    };
 }}

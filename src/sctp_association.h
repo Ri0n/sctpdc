@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace SctpDc { namespace Sctp {
 
     class InitChunk;
+    class InitAckChunk;
 
     class Association : public QObject {
         Q_OBJECT
@@ -64,7 +65,8 @@ namespace SctpDc { namespace Sctp {
 
     private:
         void populateHeader(Packet &packet);
-        void incomingInit(const InitChunk &chunk);
+        void incomingChunk(const InitChunk &chunk);
+        void incomingChunk(const InitAckChunk &chunk);
 
     private:
         State              state_ = State::Closed;

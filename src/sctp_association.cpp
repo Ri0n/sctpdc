@@ -91,13 +91,18 @@ namespace SctpDc { namespace Sctp {
             if (!chunk.isValid()) {
                 switch (chunk.type()) {
                 case InitChunk::Type:
-                    incomingInit(static_cast<const InitChunk &>(chunk));
+                    incomingChunk(static_cast<const InitChunk &>(chunk));
+                    break;
+                case InitAckChunk::Type:
+                    incomingChunk(static_cast<const InitAckChunk &>(chunk));
                     break;
                 }
             }
         }
     }
 
-    void Association::incomingInit(const InitChunk &chunk) { }
+    void Association::incomingChunk(const InitChunk &chunk) { }
+
+    void Association::incomingChunk(const InitAckChunk &chunk) { }
 
 }}
