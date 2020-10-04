@@ -35,6 +35,7 @@ namespace SctpDc { namespace Sctp {
     public:
         typedef std::remove_cv_t<Data> DataNC;
 
+        // TODO use Item right here
         Data &data;      // reference to the packet data
         int   offset;    // start of the chunk/parameter
         int   maxOffset; // size of packet for a chunk or size of chunk for a parameter
@@ -62,7 +63,8 @@ namespace SctpDc { namespace Sctp {
             }
             return *this;
         }
-        bool operator!=(const Iterator &other) { return offset != other.offset; }
+        bool operator!=(const Iterator &other) const { return offset != other.offset; }
+        bool operator==(const Iterator &other) const { return offset == other.offset; }
     };
 
     class Iterable {
@@ -142,9 +144,12 @@ namespace SctpDc { namespace Sctp {
 
         Packet() = default;
         Packet(const QByteArray &data) : data_(data) { }
+
+        bool minimalValidation(uint16_t *sourcePort = nullptr, uint16_t *destinationPort = nullptr) const;
         bool isValidSctp() const
         {
-            return data_.size() >= 12 && sourcePort() != 0 && destinationPort() != 0 && checksum() == computeChecksum();
+            quint16 s, d;
+            return minimalValidation() && checksum() == computeChecksum();
         }
 
         inline quint16 sourcePort() const { return qFromBigEndian<quint16>(data_.data()); }

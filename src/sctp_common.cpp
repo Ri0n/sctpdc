@@ -65,4 +65,26 @@ namespace SctpDc { namespace Sctp {
         data.replace(dstPos, newData.size(), newData);
     }
 
+    bool Packet::minimalValidation(uint16_t *sourcePort, uint16_t *destinationPort) const
+    {
+        if (data_.size() < Packet::HeaderSize)
+            return false;
+
+        auto sp = this->sourcePort();
+        auto dp = this->destinationPort();
+        if (!sp && !dp)
+            return false;
+
+        const_chunk_iterator b = begin();
+        const_chunk_iterator e = end();
+        if (b == e || (*b).isValid())
+            return false;
+
+        if (sourcePort)
+            *sourcePort = sp;
+        if (destinationPort)
+            *destinationPort = dp;
+        return true;
+    }
+
 }}

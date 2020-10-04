@@ -91,5 +91,7 @@ namespace SctpDc { namespace Sctp {
     class InitAckChunk : public InitChunk {
     public:
         constexpr static quint8 Type = 2;
+
+        using InitChunk::InitChunk;
     };
 }}

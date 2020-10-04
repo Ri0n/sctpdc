@@ -24,7 +24,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
-#include <QAbstractSocket>
+#include <QObject>
+
+#include <memory>
+#include <tuple>
 
 namespace SctpDc {
 class StreamChannel;
@@ -48,4 +51,21 @@ private:
     class Private;
     std::unique_ptr<Private> d;
 };
+
+/**
+ * @brief minimalValidation very minimal and quick check if it's really a sctp packet
+ * @param sourcePort - sctp source port from the packet
+ * @param destinationPort - sctp destination port from the packet
+ * @return true if the packet looks like sctp
+ *
+ * This function in general has to be called first if it's assumed the data has sctp packet.
+ * The function does nothing CPU consuming. For example it doesn't check packet checksum but checks other header fields.
+ *
+ * Out parameters soure and destination ports will contain the port information from the sctp packet. If the packet is
+ * not valid sctp the out parameters won't be changed.
+ * The ports information later can be used by the caller to pass this packet to the corresponding association.
+ *
+ * The function is thread-safe.
+ */
+bool minimalValidation(const QByteArray &data, std::uint16_t &sourcePort, std::uint16_t &destinationPort);
 }

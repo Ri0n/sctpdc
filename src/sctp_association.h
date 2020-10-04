@@ -50,7 +50,7 @@ namespace SctpDc { namespace Sctp {
             ShutdownAckSent
         };
 
-        enum class Error { None, ProtocolViolation };
+        enum class Error { None, ProtocolViolation, VerificationTag, Unknown };
 
         Association(quint16 sourcePort, quint16 destinationPort);
 
@@ -80,6 +80,7 @@ namespace SctpDc { namespace Sctp {
         quint16            inboundStreamsCount_  = 65535;
         quint16            outboundStreamsCount_ = 65535;
         quint32            receiverWindowCredit_ = 512 * 1024;
+        quint32            senderWindowCredit_   = 512 * 1024;
         Error              error_                = Error::None;
     };
 

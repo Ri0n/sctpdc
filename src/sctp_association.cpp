@@ -60,8 +60,8 @@ namespace SctpDc { namespace Sctp {
         auto   chunk = initPacket.appendChunk<InitChunk>();
 
         chunk.setInitiateTag(tag_);
-        chunk.setReceiverWindowCredit(receiverWindowCredit_);
         chunk.setInitialTsn(tsn_);
+        chunk.setReceiverWindowCredit(receiverWindowCredit_);
         chunk.setInboundStreamsCount(inboundStreamsCount_);
         chunk.setOutboundStreamsCount(outboundStreamsCount_);
         populateHeader(initPacket);
@@ -87,6 +87,11 @@ namespace SctpDc { namespace Sctp {
             emit errorOccured();
             return;
         }
+        if (state_ != State::Closed && pkt.verificationTag() != verificationTag_) {
+            error_ = Error::VerificationTag;
+            emit errorOccured();
+            return;
+        }
         for (const auto &chunk : pkt) {
             if (!chunk.isValid()) {
                 switch (chunk.type()) {
@@ -101,8 +106,40 @@ namespace SctpDc { namespace Sctp {
         }
     }
 
-    void Association::incomingChunk(const InitChunk &chunk) { }
+    void Association::incomingChunk(const InitChunk &chunk)
+    {
+        tsn_                  = chunk.initialTsn();
+        tag_                  = chunk.initiateTag();
+        senderWindowCredit_   = chunk.receiverWindowCredit();
+        inboundStreamsCount_  = chunk.inboundStreamsCount();
+        outboundStreamsCount_ = chunk.outboundStreamsCount();
 
-    void Association::incomingChunk(const InitAckChunk &chunk) { }
+        if (tag_ == 0) {
+            abort();
+            return;
+        }
+
+        Packet packet;
+        auto   ack = packet.appendChunk<InitAckChunk>();
+
+        ack.setInitiateTag(tag_);
+        ack.setInitialTsn(tsn_);
+        ack.setReceiverWindowCredit(receiverWindowCredit_);
+        ack.setInboundStreamsCount(inboundStreamsCount_);
+        ack.setOutboundStreamsCount(outboundStreamsCount_);
+        populateHeader(packet);
+        outgoingPackets_.push_back(std::move(packet));
+
+        state_ = State::CookieWait;
+        emit readyReadOutgoing();
+    }
+
+    void Association::incomingChunk(const InitAckChunk &chunk)
+    {
+        if (tag_ == 0) {
+            abort();
+            return;
+        }
+    }
 
 }}

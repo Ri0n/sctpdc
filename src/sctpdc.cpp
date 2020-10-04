@@ -42,4 +42,10 @@ StreamChannel *Connection::makeStreamChannel() { return nullptr; }
 
 DatagramChannel *Connection::makeDatagramChannel() { return nullptr; }
 
+bool minimalValidation(const QByteArray &data, uint16_t &sourcePort, uint16_t &destinationPort)
+{
+    const Sctp::Packet pkt(data);
+    return pkt.minimalValidation(&sourcePort, &destinationPort);
+}
+
 } // namespace SctpDc
