@@ -45,6 +45,16 @@ namespace SctpDc { namespace Sctp {
         return offset;
     }
 
+    int Chunk::allocParameter(quint16 type, quint16 extraSpace)
+    {
+        int offset = data.size();
+        data.resize(offset + (4 + extraSpace + 3) & ~3); // 4 - header size. remaining magic is for padding to 4 bytes
+        qToBigEndian(type, data.data() + offset);
+        quint16 paramSize = quint16(4 + extraSpace);
+        qToBigEndian(paramSize, data.data() + offset + 2);
+        return offset;
+    }
+
     quint32 Packet::computeChecksum() const
     {
         quint32 zero = 0;

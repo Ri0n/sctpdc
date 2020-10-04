@@ -1,4 +1,4 @@
-#if 0
+/*
 Copyright (c) 2020, Sergey Ilinykh <rion4ik@gmail.com>
 
 Redistribution and use in source and binary forms, with or without
@@ -20,19 +20,23 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#endif
+*/
 
 #include "sctp_association.h"
 #include "sctp_chunk.h"
+#include "sctp_parameter.h"
 
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
 #include <QRandomGenerator>
 #endif
+#include <QDataStream>
+#include <QIODevice>
+#include <QMessageAuthenticationCode>
 
 namespace SctpDc { namespace Sctp {
     void Association::populateHeader(Packet &packet)
     {
-        packet.setVerificationTag(verificationTag_);
+        packet.setVerificationTag(tagToSend_);
         packet.setSourcePort(sourcePort_);
         packet.setDestinationPort(destinationPort_);
         packet.setChecksum();
@@ -42,11 +46,13 @@ namespace SctpDc { namespace Sctp {
         sourcePort_(sourcePort), destinationPort_(destinationPort)
     {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-        tag_ = QRandomGenerator::global()->generate();
+        tagToCheck_ = QRandomGenerator::global()->generate();
 #else
-        tag_ = quint32(qrand());
+        tagToCheck_ = quint32(qrand());
 #endif
-        tsn_ = tag_;
+        if (!tagToCheck_)
+            tagToCheck_++;
+        localTsn_ = tagToCheck_;
     }
 
     void Association::associate()
@@ -56,17 +62,24 @@ namespace SctpDc { namespace Sctp {
             return;
         }
 
-        Packet initPacket;
-        auto   chunk = initPacket.appendChunk<InitChunk>();
+        Packet packet;
+        auto   chunk = packet.appendChunk<InitChunk>();
 
-        chunk.setInitiateTag(tag_);
-        chunk.setInitialTsn(tsn_);
+        chunk.setInitiateTag(tagToCheck_);
+        chunk.setInitialTsn(localTsn_);
         chunk.setReceiverWindowCredit(receiverWindowCredit_);
         chunk.setInboundStreamsCount(inboundStreamsCount_);
         chunk.setOutboundStreamsCount(outboundStreamsCount_);
-        populateHeader(initPacket);
-        outgoingPackets_.push_back(std::move(initPacket));
+        populateHeader(packet);
+        outgoingPackets_.push_back(std::move(packet));
         emit readyReadOutgoing();
+    }
+
+    void Association::abort(Error error)
+    {
+        error_ = error;
+        // TODO send abort
+        emit errorOccured();
     }
 
     QByteArray Association::readOutgoing()
@@ -87,46 +100,80 @@ namespace SctpDc { namespace Sctp {
             emit errorOccured();
             return;
         }
-        if (state_ != State::Closed && pkt.verificationTag() != verificationTag_) {
-            error_ = Error::VerificationTag;
-            emit errorOccured();
+        auto verificationTag = pkt.verificationTag();
+        if (state_ != State::Closed && verificationTag != tagToCheck_) {
+            abort(Error::VerificationTag);
             return;
         }
+        bool allowMoreChunks = true;
+        int  hundledChunks   = 0;
         for (const auto &chunk : pkt) {
-            if (!chunk.isValid()) {
-                switch (chunk.type()) {
-                case InitChunk::Type:
-                    incomingChunk(static_cast<const InitChunk &>(chunk));
-                    break;
-                case InitAckChunk::Type:
-                    incomingChunk(static_cast<const InitAckChunk &>(chunk));
-                    break;
-                }
+            if (!chunk.isValid() || !allowMoreChunks) {
+                abort(Error::ProtocolViolation);
+                return;
             }
+            switch (chunk.type()) {
+            case InitChunk::Type:
+                if (verificationTag) {
+                    abort(Error::VerificationTag);
+                    return;
+                }
+                if (hundledChunks) {
+                    abort(Error::ProtocolViolation);
+                    return;
+                }
+                allowMoreChunks = false;
+                incomingChunk(static_cast<const InitChunk &>(chunk));
+                break;
+            case InitAckChunk::Type:
+                if (hundledChunks) {
+                    abort(Error::ProtocolViolation);
+                    return;
+                }
+                allowMoreChunks = false;
+                incomingChunk(static_cast<const InitAckChunk &>(chunk));
+                break;
+            }
+            hundledChunks++;
         }
     }
 
     void Association::incomingChunk(const InitChunk &chunk)
     {
-        tsn_                  = chunk.initialTsn();
-        tag_                  = chunk.initiateTag();
+        remoteTsn_            = chunk.initialTsn();
+        tagToSend_            = chunk.initiateTag();
         senderWindowCredit_   = chunk.receiverWindowCredit();
         inboundStreamsCount_  = chunk.inboundStreamsCount();
         outboundStreamsCount_ = chunk.outboundStreamsCount();
 
-        if (tag_ == 0) {
-            abort();
+        if (tagToSend_ == 0) {
+            abort(Error::VerificationTag);
             return;
         }
 
         Packet packet;
         auto   ack = packet.appendChunk<InitAckChunk>();
 
-        ack.setInitiateTag(tag_);
-        ack.setInitialTsn(tsn_);
+        ack.setInitiateTag(tagToCheck_);
+        ack.setInitialTsn(localTsn_);
         ack.setReceiverWindowCredit(receiverWindowCredit_);
         ack.setInboundStreamsCount(inboundStreamsCount_);
         ack.setOutboundStreamsCount(outboundStreamsCount_);
+
+        quint64 privKey;
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+        privKey = QRandomGenerator::global()->generate();
+#else
+        privKey     = quint32(qrand()) << 32 + quint32(qrand());
+#endif
+        auto        privKeyData = QByteArray::fromRawData(reinterpret_cast<const char *>(&privKey), sizeof(privKey));
+        QByteArray  tcb;
+        QDataStream tcbStream(&tcb, QIODevice::WriteOnly);
+        tcbStream << tagToCheck_ << tagToSend_ << localTsn_ << remoteTsn_ << inboundStreamsCount_
+                  << outboundStreamsCount_;
+        auto cookie = tcb + QMessageAuthenticationCode::hash(tcb, privKeyData, QCryptographicHash::Sha1);
+        ack.appendParameter<CookieParameter>(cookie);
+
         populateHeader(packet);
         outgoingPackets_.push_back(std::move(packet));
 
@@ -134,12 +181,6 @@ namespace SctpDc { namespace Sctp {
         emit readyReadOutgoing();
     }
 
-    void Association::incomingChunk(const InitAckChunk &chunk)
-    {
-        if (tag_ == 0) {
-            abort();
-            return;
-        }
-    }
+    void Association::incomingChunk(const InitAckChunk &chunk) { }
 
 }}

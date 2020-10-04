@@ -55,9 +55,13 @@ namespace SctpDc { namespace Sctp {
         Association(quint16 sourcePort, quint16 destinationPort);
 
         void associate();
+        void abort(Error error);
 
+        // read payload extracted from sctp
         QByteArray readOutgoing();
-        void       writeIncoming(const QByteArray &data);
+
+        // data - an sctp packet right from network. note only sctp and its payload, nothing else
+        void writeIncoming(const QByteArray &data);
 
     signals:
         void readyReadOutgoing();
@@ -72,9 +76,10 @@ namespace SctpDc { namespace Sctp {
         State              state_ = State::Closed;
         std::deque<Packet> incomingPackets_;
         std::deque<Packet> outgoingPackets_;
-        quint32            tag_                  = 0;
-        quint32            tsn_                  = 0;
-        quint32            verificationTag_      = 0;
+        quint32            tagToCheck_           = 0; // in incoming packets. local-generated.
+        quint32            tagToSend_            = 0; // with each outgoing sctp packet. to be checked on remote side
+        quint32            localTsn_             = 0;
+        quint32            remoteTsn_            = 0;
         quint16            sourcePort_           = 0;
         quint16            destinationPort_      = 0;
         quint16            inboundStreamsCount_  = 65535;

@@ -107,6 +107,8 @@ namespace SctpDc { namespace Sctp {
 
     class Parameter : public Iterable {
     public:
+        using Iterable::Iterable;
+
         inline quint16 type() const { return qFromBigEndian<quint16>(data.constData() + offset); }
     };
 
@@ -133,6 +135,20 @@ namespace SctpDc { namespace Sctp {
         {
             return { data, offset + T::MinHeaderSize, offset + size };
         }
+
+        // works similar to allocChunk.
+        int                  allocParameter(quint16 type, quint16 extraSpace);
+        template <class T> T appendParameter(int payloadSize)
+        {
+            auto offset = allocParameter(T::Type, payloadSize);
+            return T { this->data, offset, payloadSize + 4 };
+        }
+        template <class T> T appendParameter(const QByteArray &payload)
+        {
+            auto offset = allocParameter(T::Type, payload.size());
+            data.replace(offset, payload.size(), payload);
+            return T { this->data, offset, payload.size() + 4 };
+        }
     };
 
     using chunk_iterator       = Iterator<Chunk, QByteArray>;
@@ -146,11 +162,7 @@ namespace SctpDc { namespace Sctp {
         Packet(const QByteArray &data) : data_(data) { }
 
         bool minimalValidation(uint16_t *sourcePort = nullptr, uint16_t *destinationPort = nullptr) const;
-        bool isValidSctp() const
-        {
-            quint16 s, d;
-            return minimalValidation() && checksum() == computeChecksum();
-        }
+        bool isValidSctp() const { return minimalValidation() && checksum() == computeChecksum(); }
 
         inline quint16 sourcePort() const { return qFromBigEndian<quint16>(data_.data()); }
         inline void    setSourcePort(quint16 port) { qToBigEndian(port, data_.data()); }
@@ -175,7 +187,7 @@ namespace SctpDc { namespace Sctp {
         template <class T> T appendChunk(quint16 extraSpace = 0)
         {
             auto offset = allocChunk(T::Type, T::MinHeaderSize, extraSpace);
-            return T { this->data_, offset, this->data_.size() };
+            return T { this->data_, offset, extraSpace + T::MinHeaderSize };
         }
 
         inline QByteArray takeData()
