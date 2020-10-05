@@ -101,15 +101,14 @@ namespace SctpDc { namespace Sctp {
             ensureCapacity(4);
             qToBigEndian(value, data.data() + offset + 2);
         }
-
-        inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + offset + 4, length() - 4); }
     };
 
     class Parameter : public Iterable {
     public:
         using Iterable::Iterable;
 
-        inline quint16 type() const { return qFromBigEndian<quint16>(data.constData() + offset); }
+        inline quint16    type() const { return qFromBigEndian<quint16>(data.constData() + offset); }
+        inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + offset + 4, length() - 4); }
     };
 
     using parameter_iterator       = Iterator<Parameter, QByteArray>;
@@ -125,6 +124,10 @@ namespace SctpDc { namespace Sctp {
         inline void   setFlag(quint8 flag, bool value)
         {
             data[offset + 1] = value ? (data[offset + 1] | flag) : (data[offset + 1] & ~flag);
+        }
+        template <class T> inline QByteArray value() const
+        {
+            return QByteArray::fromRawData(data.constData() + offset + T::MinHeaderSize, length() - T::MinHeaderSize);
         }
 
         inline parameter_iterator       end() { return { data, offset + size, offset + size }; }
@@ -199,6 +202,12 @@ namespace SctpDc { namespace Sctp {
         {
             auto offset = allocChunk(T::Type, T::MinHeaderSize, extraSpace);
             return T { this->data_, offset, extraSpace + T::MinHeaderSize };
+        }
+        template <class T> T appendChunk(const QByteArray &payload)
+        {
+            auto offset = allocChunk(T::Type, T::MinHeaderSize, payload.size());
+            data_.replace(offset, payload.size(), payload);
+            return T { this->data_, offset, payload.size() + T::MinHeaderSize };
         }
 
         inline QByteArray takeData()

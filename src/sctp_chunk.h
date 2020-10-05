@@ -96,4 +96,11 @@ namespace SctpDc { namespace Sctp {
         inline parameter_iterator       begin() { return Chunk::begin<InitChunk>(); }
         inline const_parameter_iterator begin() const { return Chunk::begin<InitChunk>(); }
     };
+
+    class CookieEchoChunk : public Chunk {
+    public:
+        constexpr static quint8 Type          = 10;
+        constexpr static int    MinHeaderSize = 4;
+        using Chunk::Chunk;
+    };
 }}

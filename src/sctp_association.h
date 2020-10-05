@@ -36,6 +36,7 @@ namespace SctpDc { namespace Sctp {
 
     class InitChunk;
     class InitAckChunk;
+    class CookieEchoChunk;
 
     class Association : public QObject {
         Q_OBJECT
@@ -68,13 +69,16 @@ namespace SctpDc { namespace Sctp {
         void errorOccured();
 
     private:
-        void populateHeader(Packet &packet);
-        void incomingChunk(const InitChunk &chunk);
-        void incomingChunk(const InitAckChunk &chunk);
+        void       populateHeader(Packet &packet);
+        void       incomingChunk(const InitChunk &chunk);
+        void       incomingChunk(const InitAckChunk &chunk);
+        void       incomingChunk(const CookieEchoChunk &chunk);
+        void       sendFirstPriority(Packet &packet);
+        QByteArray makeStateCookie();
 
     private:
         State              state_ = State::Closed;
-        quint64            privKey; // for cookie HMAC
+        QByteArray         privKey; // for cookie HMAC
         std::deque<Packet> incomingPackets_;
         std::deque<Packet> outgoingPackets_;
         quint32            tagToCheck_           = 0; // in incoming packets. local-generated.

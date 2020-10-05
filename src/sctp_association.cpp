@@ -42,13 +42,35 @@ namespace SctpDc { namespace Sctp {
         packet.setChecksum();
     }
 
+    void Association::sendFirstPriority(Packet &packet)
+    {
+        populateHeader(packet);
+        outgoingPackets_.push_front(std::move(packet));
+        emit readyReadOutgoing();
+    }
+
+    QByteArray Association::makeStateCookie()
+    {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+        quint64 privKey64 = QRandomGenerator::global()->generate();
+#else
+        quint64 privKey64 = quint32(qrand()) << 32 + quint32(qrand());
+#endif
+        privKey = QByteArray::fromRawData(reinterpret_cast<const char *>(&privKey64), sizeof(privKey64));
+        QByteArray  tcb;
+        QDataStream tcbStream(&tcb, QIODevice::WriteOnly);
+        tcbStream << tagToCheck_ << tagToSend_ << localTsn_ << remoteTsn_ << inboundStreamsCount_
+                  << outboundStreamsCount_;
+        return tcb + QMessageAuthenticationCode::hash(tcb, privKey, QCryptographicHash::Sha1);
+    }
+
     Association::Association(quint16 sourcePort, quint16 destinationPort) :
         sourcePort_(sourcePort), destinationPort_(destinationPort)
     {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
         tagToCheck_ = QRandomGenerator::global()->generate();
 #else
-        tagToCheck_ = quint32(qrand());
+        tagToCheck_       = quint32(qrand());
 #endif
         if (!tagToCheck_)
             tagToCheck_++;
@@ -133,7 +155,11 @@ namespace SctpDc { namespace Sctp {
                 allowMoreChunks = false;
                 incomingChunk(static_cast<const InitAckChunk &>(chunk));
                 break;
+            case CookieEchoChunk::Type:
+                incomingChunk(static_cast<const CookieEchoChunk &>(chunk));
+                break;
             }
+
             hundledChunks++;
         }
     }
@@ -159,28 +185,13 @@ namespace SctpDc { namespace Sctp {
         ack.setReceiverWindowCredit(receiverWindowCredit_);
         ack.setInboundStreamsCount(inboundStreamsCount_);
         ack.setOutboundStreamsCount(outboundStreamsCount_);
+        ack.appendParameter<CookieParameter>(makeStateCookie());
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-        privKey = QRandomGenerator::global()->generate();
-#else
-        privKey     = quint32(qrand()) << 32 + quint32(qrand());
-#endif
-        auto        privKeyData = QByteArray::fromRawData(reinterpret_cast<const char *>(&privKey), sizeof(privKey));
-        QByteArray  tcb;
-        QDataStream tcbStream(&tcb, QIODevice::WriteOnly);
-        tcbStream << tagToCheck_ << tagToSend_ << localTsn_ << remoteTsn_ << inboundStreamsCount_
-                  << outboundStreamsCount_;
-        auto cookie = tcb + QMessageAuthenticationCode::hash(tcb, privKeyData, QCryptographicHash::Sha1);
-        ack.appendParameter<CookieParameter>(cookie);
-
-        populateHeader(packet);
+        state_ = State::CookieWait;
         // after sending this packet we can theoretically free asociation and recreate it later from the cookie,
         // but it's not really necessary when we work in bundle with DataChannel which already provides decent level
         // of security and reliability
-        outgoingPackets_.push_back(std::move(packet));
-
-        state_ = State::CookieWait;
-        emit readyReadOutgoing();
+        sendFirstPriority(packet);
     }
 
     void Association::incomingChunk(const InitAckChunk &chunk)
@@ -190,6 +201,28 @@ namespace SctpDc { namespace Sctp {
             abort(Error::InvalidCookie);
             return;
         }
+        Packet packet;
+        packet.appendChunk<CookieEchoChunk>(cookie.value());
+        state_ = State::CookieEchoed;
+        sendFirstPriority(packet);
+    }
+
+    void Association::incomingChunk(const CookieEchoChunk &chunk)
+    {
+        auto cookie   = chunk.value<CookieEchoChunk>();
+        auto hashSize = QCryptographicHash::hashLength(QCryptographicHash::Sha1);
+        if (cookie.size() < hashSize) {
+            abort(Error::InvalidCookie);
+            return;
+        }
+        const auto msg = QByteArray::fromRawData(cookie.constData(), cookie.size() - hashSize);
+        if (QMessageAuthenticationCode::hash(msg, privKey, QCryptographicHash::Sha1)
+            != QByteArray::fromRawData(cookie.constData() + cookie.size() - hashSize, hashSize)) {
+            abort(Error::InvalidCookie);
+            return;
+        }
+        state_ = State::Established;
+        // TODO remaining
     }
 
 }}
