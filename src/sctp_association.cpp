@@ -160,7 +160,6 @@ namespace SctpDc { namespace Sctp {
         ack.setInboundStreamsCount(inboundStreamsCount_);
         ack.setOutboundStreamsCount(outboundStreamsCount_);
 
-        quint64 privKey;
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
         privKey = QRandomGenerator::global()->generate();
 #else
@@ -175,12 +174,22 @@ namespace SctpDc { namespace Sctp {
         ack.appendParameter<CookieParameter>(cookie);
 
         populateHeader(packet);
+        // after sending this packet we can theoretically free asociation and recreate it later from the cookie,
+        // but it's not really necessary when we work in bundle with DataChannel which already provides decent level
+        // of security and reliability
         outgoingPackets_.push_back(std::move(packet));
 
         state_ = State::CookieWait;
         emit readyReadOutgoing();
     }
 
-    void Association::incomingChunk(const InitAckChunk &chunk) { }
+    void Association::incomingChunk(const InitAckChunk &chunk)
+    {
+        const auto cookie = chunk.parameter<InitAckChunk, CookieParameter>();
+        if (!cookie.isValid()) {
+            abort(Error::InvalidCookie);
+            return;
+        }
+    }
 
 }}

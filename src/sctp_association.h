@@ -50,7 +50,7 @@ namespace SctpDc { namespace Sctp {
             ShutdownAckSent
         };
 
-        enum class Error { None, ProtocolViolation, VerificationTag, Unknown };
+        enum class Error { None, ProtocolViolation, VerificationTag, InvalidCookie, Unknown };
 
         Association(quint16 sourcePort, quint16 destinationPort);
 
@@ -74,6 +74,7 @@ namespace SctpDc { namespace Sctp {
 
     private:
         State              state_ = State::Closed;
+        quint64            privKey; // for cookie HMAC
         std::deque<Packet> incomingPackets_;
         std::deque<Packet> outgoingPackets_;
         quint32            tagToCheck_           = 0; // in incoming packets. local-generated.

@@ -149,6 +149,17 @@ namespace SctpDc { namespace Sctp {
             data.replace(offset, payload.size(), payload);
             return T { this->data, offset, payload.size() + 4 };
         }
+        template <class ChunkType, class T> T parameter() const
+        {
+            for (auto const &param : static_cast<const ChunkType &>(*this)) {
+                if (!param.isValid())
+                    return static_cast<const T &>(param);
+                if (param.type() == T::Type) {
+                    return static_cast<const T &>(param);
+                }
+            }
+            return { data, 0, 0 };
+        }
     };
 
     using chunk_iterator       = Iterator<Chunk, QByteArray>;

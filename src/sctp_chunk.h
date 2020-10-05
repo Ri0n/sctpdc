@@ -93,5 +93,7 @@ namespace SctpDc { namespace Sctp {
         constexpr static quint8 Type = 2;
 
         using InitChunk::InitChunk;
+        inline parameter_iterator       begin() { return Chunk::begin<InitChunk>(); }
+        inline const_parameter_iterator begin() const { return Chunk::begin<InitChunk>(); }
     };
 }}
