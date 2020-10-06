@@ -54,7 +54,7 @@ namespace SctpDc { namespace Sctp {
 
         enum class Error { None, ProtocolViolation, VerificationTag, InvalidCookie, Unknown };
 
-        Association(quint16 sourcePort, quint16 destinationPort);
+        Association(quint16 sourcePort, quint16 destinationPort, QObject *parent = nullptr);
 
         void  associate();
         void  abort(Error error);

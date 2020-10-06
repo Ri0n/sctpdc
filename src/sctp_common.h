@@ -53,11 +53,11 @@ namespace SctpDc { namespace Sctp {
         const Item operator*() const { return Item { const_cast<DataNC &>(data), offset, size }; }
         Iterator & operator++()
         {
-            if (size < 4) {
+            if (size < 4) { // less than header size => invalid
                 offset = maxOffset;
                 return *this;
             }
-            offset += (size & ~4);
+            offset += ((size + 3) & ~3);
             if ((maxOffset - offset) < 4 || (fetchSize() + offset) > maxOffset) {
                 size = 0;
             }
@@ -150,7 +150,7 @@ namespace SctpDc { namespace Sctp {
         template <class T> T appendParameter(const QByteArray &payload)
         {
             auto offset = allocParameter(T::Type, payload.size());
-            data.replace(offset, payload.size(), payload);
+            data.replace(offset + 4, payload.size(), payload);
             return T { this->data, offset, payload.size() + 4 };
         }
         template <class ChunkType, class T> T parameter() const
@@ -207,7 +207,7 @@ namespace SctpDc { namespace Sctp {
         template <class T> T appendChunk(const QByteArray &payload)
         {
             auto offset = allocChunk(T::Type, T::MinHeaderSize, payload.size());
-            data_.replace(offset, payload.size(), payload);
+            data_.replace(offset + T::MinHeaderSize, payload.size(), payload);
             return T { this->data_, offset, payload.size() + T::MinHeaderSize };
         }
 

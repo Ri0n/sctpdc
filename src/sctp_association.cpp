@@ -52,11 +52,11 @@ namespace SctpDc { namespace Sctp {
     QByteArray Association::makeStateCookie()
     {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-        quint64 privKey64 = QRandomGenerator::global()->generate();
+        quint64 privKey64 = QRandomGenerator::global()->generate64();
 #else
         quint64 privKey64 = quint32(qrand()) << 32 + quint32(qrand());
 #endif
-        privKey = QByteArray::fromRawData(reinterpret_cast<const char *>(&privKey64), sizeof(privKey64));
+        privKey = QByteArray(reinterpret_cast<const char *>(&privKey64), sizeof(privKey64));
         QByteArray  tcb;
         QDataStream tcbStream(&tcb, QIODevice::WriteOnly);
         tcbStream << tagToCheck_ << tagToSend_ << localTsn_ << remoteTsn_ << inboundStreamsCount_
@@ -64,8 +64,8 @@ namespace SctpDc { namespace Sctp {
         return tcb + QMessageAuthenticationCode::hash(tcb, privKey, QCryptographicHash::Sha1);
     }
 
-    Association::Association(quint16 sourcePort, quint16 destinationPort) :
-        sourcePort_(sourcePort), destinationPort_(destinationPort)
+    Association::Association(quint16 sourcePort, quint16 destinationPort, QObject *parent) :
+        QObject(parent), sourcePort_(sourcePort), destinationPort_(destinationPort)
     {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
         tagToCheck_ = QRandomGenerator::global()->generate();
