@@ -37,6 +37,7 @@ namespace SctpDc { namespace Sctp {
     class InitChunk;
     class InitAckChunk;
     class CookieEchoChunk;
+    class CookieAckChunk;
 
     class Association : public QObject {
         Q_OBJECT
@@ -55,8 +56,9 @@ namespace SctpDc { namespace Sctp {
 
         Association(quint16 sourcePort, quint16 destinationPort);
 
-        void associate();
-        void abort(Error error);
+        void  associate();
+        void  abort(Error error);
+        State state() const { return state_; }
 
         // read payload extracted from sctp
         QByteArray readOutgoing();
@@ -67,14 +69,17 @@ namespace SctpDc { namespace Sctp {
     signals:
         void readyReadOutgoing();
         void errorOccured();
+        void established();
 
     private:
         void       populateHeader(Packet &packet);
-        void       incomingChunk(const InitChunk &chunk);
-        void       incomingChunk(const InitAckChunk &chunk);
-        void       incomingChunk(const CookieEchoChunk &chunk);
         void       sendFirstPriority(Packet &packet);
         QByteArray makeStateCookie();
+
+        void incomingChunk(const InitChunk &chunk);
+        void incomingChunk(const InitAckChunk &chunk);
+        void incomingChunk(const CookieEchoChunk &chunk);
+        void incomingChunk(const CookieAckChunk &chunk);
 
     private:
         State              state_ = State::Closed;

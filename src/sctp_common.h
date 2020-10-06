@@ -136,6 +136,7 @@ namespace SctpDc { namespace Sctp {
         template <class T> parameter_iterator begin() { return { data, offset + T::MinHeaderSize, offset + size }; }
         template <class T> const_parameter_iterator begin() const
         {
+            // data, parameters offset, max offset
             return { data, offset + T::MinHeaderSize, offset + size };
         }
 

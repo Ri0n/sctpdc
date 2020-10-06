@@ -58,6 +58,7 @@ namespace SctpDc { namespace Sctp {
         qToBigEndian(type, data.data() + offset);
         quint16 paramSize = quint16(4 + extraSpace);
         qToBigEndian(paramSize, data.data() + offset + 2);
+        // FIXME update chunk size too
         // ensure last 3 bytes are zeroed (any padding has to be zeroed)
         if (extraSpace) {
             data[data.size() - 1] = 0;
@@ -99,7 +100,7 @@ namespace SctpDc { namespace Sctp {
 
         const_chunk_iterator b = begin();
         const_chunk_iterator e = end();
-        if (b == e || (*b).isValid())
+        if (b == e || !(*b).isValid())
             return false;
 
         if (sourcePort)

@@ -103,4 +103,11 @@ namespace SctpDc { namespace Sctp {
         constexpr static int    MinHeaderSize = 4;
         using Chunk::Chunk;
     };
+
+    class CookieAckChunk : public Chunk {
+    public:
+        constexpr static quint8 Type          = 11;
+        constexpr static int    MinHeaderSize = 4;
+        using Chunk::Chunk;
+    };
 }}

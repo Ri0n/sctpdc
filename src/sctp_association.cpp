@@ -92,9 +92,8 @@ namespace SctpDc { namespace Sctp {
         chunk.setReceiverWindowCredit(receiverWindowCredit_);
         chunk.setInboundStreamsCount(inboundStreamsCount_);
         chunk.setOutboundStreamsCount(outboundStreamsCount_);
-        populateHeader(packet);
-        outgoingPackets_.push_back(std::move(packet));
-        emit readyReadOutgoing();
+        state_ = State::CookieWait;
+        sendFirstPriority(packet);
     }
 
     void Association::abort(Error error)
@@ -144,7 +143,9 @@ namespace SctpDc { namespace Sctp {
                     abort(Error::ProtocolViolation);
                     return;
                 }
-                allowMoreChunks = false;
+                allowMoreChunks  = false;
+                sourcePort_      = pkt.destinationPort();
+                destinationPort_ = pkt.sourcePort();
                 incomingChunk(static_cast<const InitChunk &>(chunk));
                 break;
             case InitAckChunk::Type:
@@ -157,6 +158,9 @@ namespace SctpDc { namespace Sctp {
                 break;
             case CookieEchoChunk::Type:
                 incomingChunk(static_cast<const CookieEchoChunk &>(chunk));
+                break;
+            case CookieAckChunk::Type:
+                incomingChunk(static_cast<const CookieAckChunk &>(chunk));
                 break;
             }
 
@@ -187,7 +191,6 @@ namespace SctpDc { namespace Sctp {
         ack.setOutboundStreamsCount(outboundStreamsCount_);
         ack.appendParameter<CookieParameter>(makeStateCookie());
 
-        state_ = State::CookieWait;
         // after sending this packet we can theoretically free asociation and recreate it later from the cookie,
         // but it's not really necessary when we work in bundle with DataChannel which already provides decent level
         // of security and reliability
@@ -209,8 +212,8 @@ namespace SctpDc { namespace Sctp {
 
     void Association::incomingChunk(const CookieEchoChunk &chunk)
     {
-        auto cookie   = chunk.value<CookieEchoChunk>();
-        auto hashSize = QCryptographicHash::hashLength(QCryptographicHash::Sha1);
+        const auto cookie   = chunk.value<CookieEchoChunk>();
+        auto       hashSize = QCryptographicHash::hashLength(QCryptographicHash::Sha1);
         if (cookie.size() < hashSize) {
             abort(Error::InvalidCookie);
             return;
@@ -221,8 +224,19 @@ namespace SctpDc { namespace Sctp {
             abort(Error::InvalidCookie);
             return;
         }
+
+        Packet packet;
+        packet.appendChunk<CookieAckChunk>();
+        sendFirstPriority(packet);
+
         state_ = State::Established;
-        // TODO remaining
+        emit established();
+    }
+
+    void Association::incomingChunk(const CookieAckChunk &)
+    {
+        state_ = State::Established;
+        emit established();
     }
 
 }}

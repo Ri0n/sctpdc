@@ -24,9 +24,36 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "sctp_association.h"
 
+#include <QTest>
+
+void testHandshake()
+{
+    SctpDc::Sctp::Association local(1, 2);
+    local.associate();
+    auto data = local.readOutgoing();
+    QVERIFY(!data.isEmpty());
+    QCOMPARE(local.state(), SctpDc::Sctp::Association::State::CookieWait);
+
+    // remote receives init, remote sends init-ack with cookie, local receives init-ack, local sends cookie-echo
+    SctpDc::Sctp::Association remote(2, 1);
+    remote.writeIncoming(data);
+    local.writeIncoming(remote.readOutgoing());
+    data = local.readOutgoing();
+    QVERIFY(!data.isEmpty());
+    QCOMPARE(remote.state(), SctpDc::Sctp::Association::State::Closed);
+    QCOMPARE(local.state(), SctpDc::Sctp::Association::State::CookieEchoed);
+
+    // remote receive CookieEchoed, remote send CookieAck and comes to established. Local receives CookieAck
+    remote.writeIncoming(data);
+    local.writeIncoming(remote.readOutgoing());
+    data = local.readOutgoing();
+    QVERIFY(data.isEmpty());
+    QCOMPARE(local.state(), SctpDc::Sctp::Association::State::Established);
+    QCOMPARE(remote.state(), SctpDc::Sctp::Association::State::Established);
+}
+
 int main()
 {
-    SctpDc::Sctp::Association assoc(1, 2);
-    assoc.associate();
-    auto data = assoc.readOutgoing();
+    testHandshake();
+    return 0;
 }
