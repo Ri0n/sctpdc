@@ -26,7 +26,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <QTest>
 
-class SctpTest : public QObject {
+class HandshakeTest : public QObject {
     Q_OBJECT
 
     SctpDc::Sctp::Association *local  = nullptr;
@@ -114,6 +114,6 @@ private slots:
     }
 };
 
-QTEST_MAIN(SctpTest)
+QTEST_MAIN(HandshakeTest)
 
 #include "handshake.moc"

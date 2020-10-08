@@ -27,12 +27,21 @@ set(CMAKE_CXX_STANDARD 14)
 
 find_package(Qt5 COMPONENTS Core Network Test REQUIRED)
 
-add_executable (sctptest handshake.cpp)
-target_include_directories(sctptest PUBLIC
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+enable_testing(true)
+
+macro(add_sctpdc_test target)
+add_executable (${target} ${target}.cpp)
+target_include_directories(${target} PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../src>
   $<INSTALL_INTERFACE:include/sctpdc>  # <prefix>/include/sctpdc
 )
-target_link_libraries (sctptest PRIVATE sctpdc)
-target_link_libraries (sctptest PRIVATE Qt::Core Qt::Network Qt::Test)
-add_test(NAME sctptest COMMAND sctptest)
+
+target_link_libraries (${target} PRIVATE Qt::Test sctpdc)
+add_test(NAME ${target} COMMAND ${target})
+endmacro()
+
+add_sctpdc_test(handshake)
+add_sctpdc_test(sctp_packet)
+
