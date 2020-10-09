@@ -59,8 +59,8 @@ namespace SctpDc { namespace Sctp {
         qToBigEndian(type, data.data() + paramOffset);
         quint16 paramSize = quint16(4 + extraSpace);
         qToBigEndian(paramSize, data.data() + paramOffset + 2);
-        quint16 chunkSize = paramOffset + paramSize - offset;
-        qToBigEndian(chunkSize, data.data() + offset + 2); // update chunk size
+        size = paramOffset + paramSize - offset;
+        qToBigEndian(size, data.data() + offset + 2); // update chunk size
         // ensure last 3 bytes are zeroed (any padding has to be zeroed)
         if (extraSpace) {
             data[data.size() - 1] = 0;

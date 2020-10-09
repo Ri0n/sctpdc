@@ -39,7 +39,7 @@ namespace SctpDc { namespace Sctp {
         Data &data;      // reference to the packet data
         int   offset;    // start of the chunk/parameter
         int   maxOffset; // size of packet for a chunk or size of chunk for a parameter
-        int   size;      // size of the chunk/parameter
+        int   size;      // size of the chunk/parameter w/o padding
 
         Iterator(Data &data, int offset, int maxOffset) : data(data), offset(offset), maxOffset(maxOffset)
         {
@@ -51,6 +51,7 @@ namespace SctpDc { namespace Sctp {
         inline quint16 fetchSize() { return (size = qFromBigEndian<quint16>(data.constData() + offset + 2)); }
 
         const Item operator*() const { return Item { const_cast<DataNC &>(data), offset, size }; }
+        const Item value() const { return Item { const_cast<DataNC &>(data), offset, size }; }
         Iterator & operator++()
         {
             if (size < 4) { // less than header size => invalid
