@@ -35,6 +35,7 @@ add_library (sctpdc STATIC
     sctp_crc32.h
     sctp_common.cpp
     sctp_common.h
+    sctp_chunk.cpp
     sctp_chunk.h
     sctp_parameter.h
     sctp_association.cpp

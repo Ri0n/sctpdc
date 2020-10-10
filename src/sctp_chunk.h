@@ -1,4 +1,4 @@
-#if 0
+/*
 Copyright (c) 2020, Sergey Ilinykh <rion4ik@gmail.com>
 
 Redistribution and use in source and binary forms, with or without
@@ -20,7 +20,7 @@ LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
 ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-#endif
+*/
 
 #pragma once
 
@@ -109,5 +109,34 @@ namespace SctpDc { namespace Sctp {
         constexpr static quint8 Type          = 11;
         constexpr static int    MinHeaderSize = 4;
         using Chunk::Chunk;
+    };
+
+    class SackChunk : public Chunk {
+    public:
+        constexpr static quint8 Type          = 3;
+        constexpr static int    MinHeaderSize = 16;
+
+        struct Gap {
+            quint16 begin;
+            quint16 end;
+        };
+
+        using Chunk::Chunk;
+
+        inline quint32 cumulativeTSNAck() const { return qFromBigEndian<quint32>(data.constData() + offset + 4); }
+        inline void    setCumulativeTSNAck(quint32 tag) { qToBigEndian(tag, data.data() + offset + 4); }
+
+        inline quint32 receiverWindowCredit() const { return qFromBigEndian<quint32>(data.constData() + offset + 8); }
+        inline void    setReceiverWindowCredit(quint32 tag) { qToBigEndian(tag, data.data() + offset + 8); }
+
+        inline quint16 gapAckBlocksCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 12); }
+        inline void    setGapAckBlocksCount(quint16 count) { qToBigEndian(count, data.data() + offset + 12); }
+
+        inline quint16 duplicateTSNCount() const { return qFromBigEndian<quint16>(data.constData() + offset + 14); }
+        inline void    setDuplicateTSNCount(quint16 count) { qToBigEndian(count, data.data() + offset + 14); }
+
+        void                  setData(const QList<SackChunk::Gap> &gaps, const QList<quint32> &dups);
+        QList<SackChunk::Gap> gaps() const;
+        QList<quint32>        dups() const;
     };
 }}
