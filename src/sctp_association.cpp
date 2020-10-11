@@ -146,7 +146,7 @@ namespace SctpDc { namespace Sctp {
                 allowMoreChunks  = false;
                 sourcePort_      = pkt.destinationPort();
                 destinationPort_ = pkt.sourcePort();
-                incomingChunk(static_cast<const InitChunk &>(chunk));
+                incomingChunk(chunk.as<InitChunk>());
                 break;
             case InitAckChunk::Type:
                 if (hundledChunks) {
@@ -154,13 +154,13 @@ namespace SctpDc { namespace Sctp {
                     return;
                 }
                 allowMoreChunks = false;
-                incomingChunk(static_cast<const InitAckChunk &>(chunk));
+                incomingChunk(chunk.as<InitAckChunk>());
                 break;
             case CookieEchoChunk::Type:
-                incomingChunk(static_cast<const CookieEchoChunk &>(chunk));
+                incomingChunk(chunk.as<CookieEchoChunk>());
                 break;
             case CookieAckChunk::Type:
-                incomingChunk(static_cast<const CookieAckChunk &>(chunk));
+                incomingChunk(chunk.as<CookieAckChunk>());
                 break;
             }
 
@@ -199,7 +199,7 @@ namespace SctpDc { namespace Sctp {
 
     void Association::incomingChunk(const InitAckChunk &chunk)
     {
-        const auto cookie = chunk.parameter<InitAckChunk, CookieParameter>();
+        const auto cookie = chunk.parameter<CookieParameter>();
         if (!cookie.isValid()) {
             abort(Error::InvalidCookie);
             return;
@@ -212,7 +212,7 @@ namespace SctpDc { namespace Sctp {
 
     void Association::incomingChunk(const CookieEchoChunk &chunk)
     {
-        const auto cookie   = chunk.value<CookieEchoChunk>();
+        const auto cookie   = chunk.value();
         auto       hashSize = QCryptographicHash::hashLength(QCryptographicHash::Sha1);
         if (cookie.size() < hashSize) {
             abort(Error::InvalidCookie);

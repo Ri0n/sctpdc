@@ -33,48 +33,92 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace SctpDc { namespace Sctp {
     template <class Item, class Data> class Iterator {
     public:
-        typedef std::remove_cv_t<Data> DataNC;
+        Item item;
+        int  maxOffset; // size of packet for a chunk or size of chunk for a parameter
 
-        // TODO use Item right here
-        Data &data;      // reference to the packet data
-        int   offset;    // start of the chunk/parameter
-        int   maxOffset; // size of packet for a chunk or size of chunk for a parameter
-        int   size;      // size of the chunk/parameter w/o padding
-
-        Iterator(Data &data, int offset, int maxOffset) : data(data), offset(offset), maxOffset(maxOffset)
+        Iterator(Data &data, int offset, int maxOffset) :
+            item(data, offset, ((maxOffset - offset) < 4 ? 0 : qFromBigEndian<quint16>(data.constData() + offset + 2))),
+            maxOffset(maxOffset)
         {
-            if ((maxOffset - offset) < 4 || (fetchSize() + offset) > maxOffset) {
-                size = 0;
+            if (item.size + offset > maxOffset) {
+                item.size = 0;
             }
         }
 
-        inline quint16 fetchSize() { return (size = qFromBigEndian<quint16>(data.constData() + offset + 2)); }
+        // inline quint16 fetchSize() { return (item.size = qFromBigEndian<quint16>(data.constData() + offset + 2)); }
 
-        const Item operator*() const { return Item { const_cast<DataNC &>(data), offset, size }; }
-        const Item value() const { return Item { const_cast<DataNC &>(data), offset, size }; }
-        Iterator & operator++()
+        inline Item        operator*() const { return item; }
+        inline Item        value() const { return item; }
+        inline const Item *operator->() const { return &item; } // don't store the returned pointer. it will change.
+        Iterator &         operator++()
         {
-            if (size < 4) { // less than header size => invalid
-                offset = maxOffset;
+            if (item.size < 4) { // less than header size => invalid
+                item.offset = maxOffset;
                 return *this;
             }
-            offset += ((size + 3) & ~3);
-            if ((maxOffset - offset) < 4 || (fetchSize() + offset) > maxOffset) {
-                size = 0;
+            item.offset += ((item.size + 3) & ~3);
+            if ((maxOffset - item.offset) < 4
+                || ((item.size = qFromBigEndian<quint16>(item.data.constData() + item.offset + 2)) + item.offset)
+                    > maxOffset) {
+                item.size = 0;
             }
             return *this;
         }
-        bool operator!=(const Iterator &other) const { return offset != other.offset; }
-        bool operator==(const Iterator &other) const { return offset == other.offset; }
+        bool operator!=(const Iterator &other) const { return item.offset != other.item.offset; }
+        bool operator==(const Iterator &other) const { return item.offset == other.item.offset; }
+    };
+
+    template <class Item> class ConstIterator {
+    public:
+        Item item;
+        int  maxOffset; // size of packet for a chunk or size of chunk for a parameter
+
+        ConstIterator(const QByteArray &data, int offset, int maxOffset) :
+            item(const_cast<QByteArray &>(data), offset,
+                 ((maxOffset - offset) < 4 ? 0 : qFromBigEndian<quint16>(data.constData() + offset + 2))),
+            maxOffset(maxOffset)
+        {
+            if (item.size + offset > maxOffset) {
+                item.size = 0;
+            }
+        }
+
+        // inline quint16 fetchSize() { return (item.size = qFromBigEndian<quint16>(data.constData() + offset + 2)); }
+
+        inline const Item operator*() const { return item; }
+        inline const Item value() const { return item; }
+        ConstIterator &   operator++()
+        {
+            if (item.size < 4) { // less than header size => invalid
+                item.offset = maxOffset;
+                return *this;
+            }
+            item.offset += ((item.size + 3) & ~3);
+            if ((maxOffset - item.offset) < 4
+                || ((item.size = qFromBigEndian<quint16>(item.data.constData() + item.offset + 2)) + item.offset)
+                    > maxOffset) {
+                item.size = 0;
+            }
+            return *this;
+        }
+        bool operator!=(const ConstIterator &other) const { return item.offset != other.item.offset; }
+        bool operator==(const ConstIterator &other) const { return item.offset == other.item.offset; }
     };
 
     class Iterable {
     public:
         QByteArray &data;
         int         offset;
-        int         size;
+        quint16     size;
 
         constexpr Iterable(QByteArray &data, int offset, int size) : data(data), offset(offset), size(size) { }
+        constexpr Iterable(const Iterable &other) : data(other.data), offset(other.offset), size(other.size) { }
+        Iterable &operator=(const Iterable &other)
+        {
+            offset = other.offset;
+            size   = other.size;
+            return *this;
+        }
 
         inline bool isValid(int headerSize = 4) const { return size >= headerSize; }
 
@@ -112,8 +156,8 @@ namespace SctpDc { namespace Sctp {
         inline QByteArray value() const { return QByteArray::fromRawData(data.constData() + offset + 4, length() - 4); }
     };
 
-    using parameter_iterator       = Iterator<Parameter, QByteArray>;
-    using const_parameter_iterator = Iterator<const Parameter, const QByteArray>;
+    using parameter_iterator       = Iterator<Parameter, QByteArray &>;
+    using const_parameter_iterator = ConstIterator<Parameter>;
 
     class Chunk : public Iterable {
     public:
@@ -126,23 +170,30 @@ namespace SctpDc { namespace Sctp {
         {
             data[offset + 1] = value ? (data[offset + 1] | flag) : (data[offset + 1] & ~flag);
         }
-        template <class T> inline QByteArray value() const
-        {
-            return QByteArray::fromRawData(data.constData() + offset + T::MinHeaderSize, length() - T::MinHeaderSize);
-        }
+        int allocParameter(quint16 type, quint16 extraSpace);
 
-        inline parameter_iterator       end() { return { data, offset + size, offset + size }; }
-        inline const_parameter_iterator end() const { return { data, offset + size, offset + size }; }
+        template <class ChunkType> ChunkType &      as() { return *static_cast<ChunkType *>(this); }
+        template <class ChunkType> const ChunkType &as() const { return *static_cast<const ChunkType *>(this); }
+    };
 
-        template <class T> parameter_iterator begin() { return { data, offset + T::MinHeaderSize, offset + size }; }
-        template <class T> const_parameter_iterator begin() const
+    template <class ChunkType> class ChunkWithPayload : public Chunk {
+    public:
+        using Chunk::Chunk;
+        inline QByteArray value() const
         {
-            // data, parameters offset, max offset
-            return { data, offset + T::MinHeaderSize, offset + size };
+            return QByteArray::fromRawData(data.constData() + offset + ChunkType::MinHeaderSize,
+                                           length() - ChunkType::MinHeaderSize);
         }
+    };
+
+    using chunk_iterator       = Iterator<Chunk, QByteArray>;
+    using const_chunk_iterator = ConstIterator<Chunk>;
+
+    template <class ChunkType> class ChunkWithParameters : public Chunk {
+    public:
+        using Chunk::Chunk;
 
         // works similar to allocChunk.
-        int                  allocParameter(quint16 type, quint16 extraSpace);
         template <class T> T appendParameter(int payloadSize)
         {
             auto offset = allocParameter(T::Type, payloadSize);
@@ -154,7 +205,7 @@ namespace SctpDc { namespace Sctp {
             data.replace(offset + 4, payload.size(), payload);
             return T { this->data, offset, payload.size() + 4 };
         }
-        template <class ChunkType, class T> T parameter() const
+        template <class T> T parameter() const
         {
             for (auto const &param : static_cast<const ChunkType &>(*this)) {
                 if (!param.isValid())
@@ -165,10 +216,17 @@ namespace SctpDc { namespace Sctp {
             }
             return { data, 0, 0 };
         }
-    };
 
-    using chunk_iterator       = Iterator<Chunk, QByteArray>;
-    using const_chunk_iterator = Iterator<const Chunk, const QByteArray>;
+        inline parameter_iterator       end() { return { data, offset + size, offset + size }; }
+        inline const_parameter_iterator end() const { return { data, offset + size, offset + size }; }
+
+        inline parameter_iterator       begin() { return { data, offset + ChunkType::MinHeaderSize, offset + size }; }
+        inline const_parameter_iterator begin() const
+        {
+            // data, parameters offset, max offset
+            return { data, offset + ChunkType::MinHeaderSize, offset + size };
+        }
+    };
 
     class Packet {
     public:

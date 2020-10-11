@@ -23,6 +23,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #include "sctp_association.h"
+#include "sctp_chunk.h"
 
 #include <QTest>
 
@@ -43,7 +44,7 @@ private slots:
     {
         local->associate();
         QByteArray data = local->readOutgoing();
-        QVERIFY(!data.isEmpty());
+        QVERIFY(data.size() >= SctpDc::Sctp::Packet::HeaderSize + SctpDc::Sctp::InitChunk::MinHeaderSize);
         QCOMPARE(local->state(), SctpDc::Sctp::Association::State::CookieWait);
     }
 

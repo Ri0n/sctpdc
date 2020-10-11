@@ -27,12 +27,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sctp_common.h"
 
 namespace SctpDc { namespace Sctp {
-    class DataChunk : public Chunk {
+    class DataChunk : public ChunkWithPayload<DataChunk> {
     public:
         constexpr static quint8  Type          = 0;
         constexpr static quint16 MinHeaderSize = 16;
 
-        using Chunk::Chunk;
+        using ChunkWithPayload::ChunkWithPayload;
 
         inline bool isValid() const { return Chunk::isValid(16); }
 
@@ -60,12 +60,12 @@ namespace SctpDc { namespace Sctp {
         }
     };
 
-    class InitChunk : public Chunk {
+    class InitChunk : public ChunkWithParameters<InitChunk> {
     public:
         constexpr static quint8 Type          = 1;
         constexpr static int    MinHeaderSize = 16;
 
-        using Chunk::Chunk;
+        using ChunkWithParameters::ChunkWithParameters;
 
         inline bool isValid() const { return Chunk::isValid(16); }
 
@@ -83,25 +83,19 @@ namespace SctpDc { namespace Sctp {
 
         inline quint32 initialTsn() const { return qFromBigEndian<quint32>(data.constData() + offset + 16); }
         inline void    setInitialTsn(quint32 tsn) { qToBigEndian(tsn, data.data() + offset + 16); }
-
-        inline parameter_iterator       begin() { return Chunk::begin<InitChunk>(); }
-        inline const_parameter_iterator begin() const { return Chunk::begin<InitChunk>(); }
     };
 
     class InitAckChunk : public InitChunk {
     public:
         constexpr static quint8 Type = 2;
-
         using InitChunk::InitChunk;
-        inline parameter_iterator       begin() { return Chunk::begin<InitAckChunk>(); }
-        inline const_parameter_iterator begin() const { return Chunk::begin<InitAckChunk>(); }
     };
 
-    class CookieEchoChunk : public Chunk {
+    class CookieEchoChunk : public ChunkWithPayload<CookieEchoChunk> {
     public:
         constexpr static quint8 Type          = 10;
         constexpr static int    MinHeaderSize = 4;
-        using Chunk::Chunk;
+        using ChunkWithPayload::ChunkWithPayload;
     };
 
     class CookieAckChunk : public Chunk {

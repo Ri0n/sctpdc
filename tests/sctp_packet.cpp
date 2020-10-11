@@ -62,9 +62,8 @@ private slots:
         packet.appendChunk<DataChunk>(QByteArray::fromRawData(arr, 2));
         packet.appendChunk<DataChunk>(QByteArray::fromRawData(arr + 2, 7));
         auto it = packet.begin();
-        QCOMPARE((*it).value<DataChunk>(), QByteArray::fromRawData(arr, 2));
-        ++it;
-        QCOMPARE((*it).value<DataChunk>(), QByteArray::fromRawData(arr + 2, 7));
+        QCOMPARE(it->as<DataChunk>().value(), QByteArray::fromRawData(arr, 2));
+        QCOMPARE((++it)->as<DataChunk>().value(), QByteArray::fromRawData(arr + 2, 7));
         QCOMPARE(packet.takeData().size(), Packet::HeaderSize + DataChunk::MinHeaderSize * 2 + 4 + 8);
     }
 
