@@ -49,6 +49,11 @@ namespace SctpDc { namespace Sctp {
         emit readyReadOutgoing();
     }
 
+    void Association::trySend()
+    {
+        // send something from the queue
+    }
+
     QByteArray Association::makeStateCookie()
     {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
@@ -162,10 +167,39 @@ namespace SctpDc { namespace Sctp {
             case CookieAckChunk::Type:
                 incomingChunk(chunk.as<CookieAckChunk>());
                 break;
+            case SackChunk::Type:
+                incomingChunk(chunk.as<SackChunk>());
+                break;
             }
 
             hundledChunks++;
         }
+    }
+
+    void Association::write(quint16 streamId, bool unordered, const QByteArray &payloadProto, const QByteArray &data)
+    {
+        int   offset = 0;
+        auto &ssn    = stream2ssn_[streamId];
+        while (offset < data.size()) {
+            auto       toTake = std::min(data.size(), int(mtu_) - Packet::HeaderSize - DataChunk::MinHeaderSize);
+            UnackChunk transfer;
+            transfer.data.resize(toTake + DataChunk::MinHeaderSize);
+            DataChunk chunk { transfer.data, 0, transfer.data.size() };
+            chunk.setUnordered(unordered);
+            chunk.setBeginning(offset == 0);
+            chunk.setEnding(offset + toTake == data.size());
+            chunk.setUserData(QByteArray::fromRawData(data.constData() + offset, toTake));
+            chunk.setPayloadProtocol(payloadProto);
+            chunk.setStreamIdentifier(streamId);
+            chunk.setTsn(localTsn_);
+            if (!unordered) {
+                chunk.setStreamSequenceNumber(ssn);
+            }
+            sendQueue_.push_back(transfer);
+            localTsn_++;
+        }
+        ssn++;
+        trySend();
     }
 
     void Association::incomingChunk(const InitChunk &chunk)
@@ -237,6 +271,13 @@ namespace SctpDc { namespace Sctp {
     {
         state_ = State::Established;
         emit established();
+    }
+
+    void Association::incomingChunk(const SackChunk &chunk)
+    {
+        auto gaps = chunk.gaps();
+        auto dups = chunk.dups();
+        // TODO
     }
 
 }}

@@ -46,8 +46,13 @@ namespace SctpDc { namespace Sctp {
         inline void setEnding(bool value) { setFlag(0x1, value); }
 
         inline quint32 tsn() const { return qFromBigEndian<quint32>(data.constData() + offset + 4); }
+        inline void    setTsn(quint32 tsn) { qToBigEndian(tsn, data.data() + offset + 4); }
+
         inline quint16 streamIdentifier() const { return qFromBigEndian<quint16>(data.constData() + offset + 8); }
+        inline void    setStreamIdentifier(quint16 stream) { qToBigEndian(stream, data.data() + offset + 8); }
+
         inline quint16 streamSequenceNumber() const { return qFromBigEndian<quint16>(data.constData() + offset + 10); }
+        inline void    setStreamSequenceNumber(quint16 sn) { qToBigEndian(sn, data.data() + offset + 10); }
 
         inline const QByteArray payloadProtocol() const { return getData(12, 4); }
         inline void             setPayloadProtocol(const QByteArray &proto) { setData(12, proto); }

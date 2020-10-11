@@ -38,6 +38,7 @@ namespace SctpDc { namespace Sctp {
     class InitAckChunk;
     class CookieEchoChunk;
     class CookieAckChunk;
+    class SackChunk;
 
     class Association : public QObject {
         Q_OBJECT
@@ -66,6 +67,8 @@ namespace SctpDc { namespace Sctp {
         // data - an sctp packet right from network. note only sctp and its payload, nothing else
         void writeIncoming(const QByteArray &data);
 
+        void write(quint16 streamId, bool unordered, const QByteArray &payloadProto, const QByteArray &data);
+
     signals:
         void readyReadOutgoing();
         void errorOccured();
@@ -74,29 +77,43 @@ namespace SctpDc { namespace Sctp {
     private:
         void       populateHeader(Packet &packet);
         void       sendFirstPriority(Packet &packet);
+        void       trySend();
         QByteArray makeStateCookie();
 
         void incomingChunk(const InitChunk &chunk);
         void incomingChunk(const InitAckChunk &chunk);
         void incomingChunk(const CookieEchoChunk &chunk);
         void incomingChunk(const CookieAckChunk &chunk);
+        void incomingChunk(const SackChunk &);
 
     private:
-        State              state_ = State::Closed;
-        QByteArray         privKey; // for cookie HMAC
-        std::deque<Packet> incomingPackets_;
-        std::deque<Packet> outgoingPackets_;
-        quint32            tagToCheck_           = 0; // in incoming packets. local-generated.
-        quint32            tagToSend_            = 0; // with each outgoing sctp packet. to be checked on remote side
-        quint32            localTsn_             = 0;
-        quint32            remoteTsn_            = 0;
-        quint16            sourcePort_           = 0;
-        quint16            destinationPort_      = 0;
-        quint16            inboundStreamsCount_  = 65535;
-        quint16            outboundStreamsCount_ = 65535;
-        quint32            receiverWindowCredit_ = 512 * 1024;
-        quint32            senderWindowCredit_   = 512 * 1024;
-        Error              error_                = Error::None;
+        struct UnackChunk {
+            quint32    timestamp; // monotonic time
+            quint32    tsn;
+            QByteArray data;
+        };
+
+        State                         state_ = State::Closed;
+        QByteArray                    privKey; // for cookie HMAC
+        std::deque<Packet>            incomingPackets_;
+        std::deque<Packet>            outgoingPackets_;
+        std::deque<UnackChunk>        sendQueue_;
+        std::map<quint32, UnackChunk> unacknowledgedChunks; // outgoing chunks timestamp => chunk
+        std::map<quint16, quint16>    stream2ssn_;          // stream id to stream seqnum
+        quint32                       tagToCheck_ = 0;      // in incoming packets. local-generated.
+        quint32                       tagToSend_  = 0; // with each outgoing sctp packet. to be checked on remote side
+        quint32                       localTsn_   = 0;
+        quint32                       remoteTsn_  = 0;
+        quint16                       sourcePort_ = 0;
+        quint16                       destinationPort_      = 0;
+        quint16                       inboundStreamsCount_  = 65535;
+        quint16                       outboundStreamsCount_ = 65535;
+        quint32                       receiverWindowCredit_ = 512 * 1024;
+        quint32                       receiverUsedCredit_   = 0;
+        quint32                       senderWindowCredit_   = 512 * 1024;
+        quint32                       senderUsedCredit_     = 0;
+        quint32                       mtu_                  = 1400; // for loopback may be way more
+        Error                         error_                = Error::None;
     };
 
 } // namespace Sctp
