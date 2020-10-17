@@ -238,6 +238,8 @@ namespace SctpDc { namespace Sctp {
         bool minimalValidation(uint16_t *sourcePort = nullptr, uint16_t *destinationPort = nullptr) const;
         bool isValidSctp() const { return minimalValidation() && checksum() == computeChecksum(); }
 
+        inline int size() const { return data_.size(); }
+
         inline quint16 sourcePort() const { return qFromBigEndian<quint16>(data_.data()); }
         inline void    setSourcePort(quint16 port) { qToBigEndian(port, data_.data()); }
         inline quint16 destinationPort() const { return qFromBigEndian<quint16>(data_.data() + 2); }
@@ -269,6 +271,7 @@ namespace SctpDc { namespace Sctp {
             data_.replace(offset + T::MinHeaderSize, payload.size(), payload);
             return T { this->data_, offset, payload.size() + T::MinHeaderSize };
         }
+        void appendRawChunk(const QByteArray &rawChunk);
 
         inline QByteArray takeData()
         {

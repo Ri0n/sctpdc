@@ -51,7 +51,28 @@ namespace SctpDc { namespace Sctp {
 
     void Association::trySend()
     {
-        // send something from the queue
+        if (!(state_ == State::Established || state_ == State::CookieEchoed))
+            return;
+
+        while (remoteUsedCredit_ < remoteWindowCredit_) {
+            Packet pkt;
+            while (controlSendQueue_.size() && pkt.size() < int(mtu_)) {
+                auto const &chunk = controlSendQueue_.front();
+                pkt.appendRawChunk(chunk.data);
+                controlSendQueue_.pop_front();
+            }
+            while (dataSendQueue_.size() && pkt.size() < int(mtu_)) {
+                auto const &chunk = dataSendQueue_.front();
+                remoteUsedCredit_ += chunk.data.size();
+                pkt.appendRawChunk(chunk.data);
+                dataSendQueue_.pop_front();
+            }
+            if (pkt.size() <= Packet::HeaderSize)
+                break; // nothing to send
+            populateHeader(pkt);
+            outgoingPackets_.push_back(std::move(pkt));
+            emit readyReadOutgoing();
+        }
     }
 
     QByteArray Association::makeStateCookie()
@@ -94,7 +115,7 @@ namespace SctpDc { namespace Sctp {
 
         chunk.setInitiateTag(tagToCheck_);
         chunk.setInitialTsn(localTsn_);
-        chunk.setReceiverWindowCredit(receiverWindowCredit_);
+        chunk.setReceiverWindowCredit(localWindowCredit_);
         chunk.setInboundStreamsCount(inboundStreamsCount_);
         chunk.setOutboundStreamsCount(outboundStreamsCount_);
         state_ = State::CookieWait;
@@ -195,7 +216,7 @@ namespace SctpDc { namespace Sctp {
             if (!unordered) {
                 chunk.setStreamSequenceNumber(ssn);
             }
-            sendQueue_.push_back(transfer);
+            dataSendQueue_.push_back(transfer);
             localTsn_++;
         }
         ssn++;
@@ -206,7 +227,7 @@ namespace SctpDc { namespace Sctp {
     {
         remoteTsn_            = chunk.initialTsn();
         tagToSend_            = chunk.initiateTag();
-        senderWindowCredit_   = chunk.receiverWindowCredit();
+        remoteWindowCredit_   = chunk.receiverWindowCredit();
         inboundStreamsCount_  = chunk.inboundStreamsCount();
         outboundStreamsCount_ = chunk.outboundStreamsCount();
 
@@ -220,7 +241,7 @@ namespace SctpDc { namespace Sctp {
 
         ack.setInitiateTag(tagToCheck_);
         ack.setInitialTsn(localTsn_);
-        ack.setReceiverWindowCredit(receiverWindowCredit_);
+        ack.setReceiverWindowCredit(localWindowCredit_);
         ack.setInboundStreamsCount(inboundStreamsCount_);
         ack.setOutboundStreamsCount(outboundStreamsCount_);
         ack.appendParameter<CookieParameter>(makeStateCookie());
@@ -275,6 +296,9 @@ namespace SctpDc { namespace Sctp {
 
     void Association::incomingChunk(const SackChunk &chunk)
     {
+        if (!(state_ == State::Established || state_ == State::ShutdownPending || state_ == State::ShutdownSent)) {
+            return; // we don't care
+        }
         auto gaps = chunk.gaps();
         auto dups = chunk.dups();
         // TODO

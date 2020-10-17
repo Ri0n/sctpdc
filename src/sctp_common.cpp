@@ -51,6 +51,17 @@ namespace SctpDc { namespace Sctp {
         return offset;
     }
 
+    void Packet::appendRawChunk(const QByteArray &rawChunk)
+    {
+        Q_ASSERT(rawChunk.size() % 4 == 0);
+        int offset = data_.size();
+        if (!offset) {
+            offset += HeaderSize;
+        }
+        data_.resize(offset + rawChunk.size());
+        data_.replace(offset, rawChunk.size(), rawChunk);
+    }
+
     int Chunk::allocParameter(quint16 type, quint16 extraSpace)
     {
         int paramOffset = data.size();

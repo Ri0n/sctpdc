@@ -49,6 +49,7 @@ namespace SctpDc { namespace Sctp {
             CookieEchoed,
             Established,
             ShutdownPending,
+            ShutdownSent,
             ShutdownSentReceived,
             ShutdownAckSent
         };
@@ -97,7 +98,8 @@ namespace SctpDc { namespace Sctp {
         QByteArray                    privKey; // for cookie HMAC
         std::deque<Packet>            incomingPackets_;
         std::deque<Packet>            outgoingPackets_;
-        std::deque<UnackChunk>        sendQueue_;
+        std::deque<UnackChunk>        dataSendQueue_;
+        std::deque<UnackChunk>        controlSendQueue_;
         std::map<quint32, UnackChunk> unacknowledgedChunks; // outgoing chunks timestamp => chunk
         std::map<quint16, quint16>    stream2ssn_;          // stream id to stream seqnum
         quint32                       tagToCheck_ = 0;      // in incoming packets. local-generated.
@@ -108,10 +110,10 @@ namespace SctpDc { namespace Sctp {
         quint16                       destinationPort_      = 0;
         quint16                       inboundStreamsCount_  = 65535;
         quint16                       outboundStreamsCount_ = 65535;
-        quint32                       receiverWindowCredit_ = 512 * 1024;
-        quint32                       receiverUsedCredit_   = 0;
-        quint32                       senderWindowCredit_   = 512 * 1024;
-        quint32                       senderUsedCredit_     = 0;
+        quint32                       localWindowCredit_    = 512 * 1024;
+        quint32                       localUsedCredit_      = 0; // total bytes we not yet acknowledged
+        quint32                       remoteWindowCredit_   = 512 * 1024;
+        quint32                       remoteUsedCredit_     = 0;    // total sent but not yet aknowledged bytes
         quint32                       mtu_                  = 1400; // for loopback may be way more
         Error                         error_                = Error::None;
     };
