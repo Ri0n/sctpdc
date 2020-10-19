@@ -27,6 +27,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "sctp_common.h"
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QObject>
 #include <QtEndian>
 
@@ -39,6 +40,7 @@ namespace SctpDc { namespace Sctp {
     class CookieEchoChunk;
     class CookieAckChunk;
     class SackChunk;
+    class DataChunk;
 
     class Association : public QObject {
         Q_OBJECT
@@ -50,11 +52,11 @@ namespace SctpDc { namespace Sctp {
             Established,
             ShutdownPending,
             ShutdownSent,
-            ShutdownSentReceived,
+            ShutdownReceived,
             ShutdownAckSent
         };
 
-        enum class Error { None, ProtocolViolation, VerificationTag, InvalidCookie, Unknown };
+        enum class Error { None, WrongState, ProtocolViolation, VerificationTag, InvalidCookie, Unknown };
 
         Association(quint16 sourcePort, quint16 destinationPort, QObject *parent = nullptr);
 
@@ -80,12 +82,14 @@ namespace SctpDc { namespace Sctp {
         void       sendFirstPriority(Packet &packet);
         void       trySend();
         QByteArray makeStateCookie();
+        void       setError(Error error);
 
         void incomingChunk(const InitChunk &chunk);
         void incomingChunk(const InitAckChunk &chunk);
         void incomingChunk(const CookieEchoChunk &chunk);
         void incomingChunk(const CookieAckChunk &chunk);
         void incomingChunk(const SackChunk &);
+        void incomingChunk(const DataChunk &);
 
     private:
         struct UnackChunk {
@@ -96,6 +100,7 @@ namespace SctpDc { namespace Sctp {
 
         State                         state_ = State::Closed;
         QByteArray                    privKey; // for cookie HMAC
+        QElapsedTimer                 timer_;
         std::deque<Packet>            incomingPackets_;
         std::deque<Packet>            outgoingPackets_;
         std::deque<UnackChunk>        dataSendQueue_;

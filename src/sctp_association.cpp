@@ -54,17 +54,25 @@ namespace SctpDc { namespace Sctp {
         if (!(state_ == State::Established || state_ == State::CookieEchoed))
             return;
 
+        auto now = timer_.elapsed();
+
+        bool dataSent = false;
         while (remoteUsedCredit_ < remoteWindowCredit_) {
             Packet pkt;
-            while (controlSendQueue_.size() && pkt.size() < int(mtu_)) {
+            while (controlSendQueue_.size() && (pkt.size() <= Packet::HeaderSize || pkt.size() < int(mtu_))) {
                 auto const &chunk = controlSendQueue_.front();
                 pkt.appendRawChunk(chunk.data);
                 controlSendQueue_.pop_front();
             }
-            while (dataSendQueue_.size() && pkt.size() < int(mtu_)) {
+
+            // if have soemthing to send and the packet is empty (rely on ip fragmentation) or it's not empty,
+            // but it still can fit more, and adding a chunk won't overflow remote receiver window credit
+            while (dataSendQueue_.size() && (pkt.size() <= Packet::HeaderSize || pkt.size() < int(mtu_))
+                   && (pkt.size() + dataSendQueue_.front().data.size() + remoteUsedCredit_) < remoteWindowCredit_) {
                 auto const &chunk = dataSendQueue_.front();
                 remoteUsedCredit_ += chunk.data.size();
                 pkt.appendRawChunk(chunk.data);
+                unacknowledgedChunks.emplace(now, chunk);
                 dataSendQueue_.pop_front();
             }
             if (pkt.size() <= Packet::HeaderSize)
@@ -72,6 +80,11 @@ namespace SctpDc { namespace Sctp {
             populateHeader(pkt);
             outgoingPackets_.push_back(std::move(pkt));
             emit readyReadOutgoing();
+            dataSent = true;
+        }
+
+        if (!dataSent && (controlSendQueue_.size() || dataSendQueue_.size())) {
+            // credit overflow? remote sack lost? TODO 6.1.A
         }
     }
 
@@ -93,6 +106,7 @@ namespace SctpDc { namespace Sctp {
     Association::Association(quint16 sourcePort, quint16 destinationPort, QObject *parent) :
         QObject(parent), sourcePort_(sourcePort), destinationPort_(destinationPort)
     {
+        timer_.start();
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
         tagToCheck_ = QRandomGenerator::global()->generate();
 #else
@@ -129,6 +143,12 @@ namespace SctpDc { namespace Sctp {
         emit errorOccured();
     }
 
+    void Association::setError(Error error)
+    {
+        error_ = error;
+        emit errorOccured();
+    }
+
     QByteArray Association::readOutgoing()
     {
         if (outgoingPackets_.empty()) {
@@ -143,14 +163,11 @@ namespace SctpDc { namespace Sctp {
     {
         const Packet pkt(data);
         if (!pkt.isValidSctp()) {
-            error_ = Error::ProtocolViolation;
-            emit errorOccured();
-            return;
+            return; // ignore non-sctp or broken sctp
         }
         auto verificationTag = pkt.verificationTag();
         if (state_ != State::Closed && verificationTag != tagToCheck_) {
-            abort(Error::VerificationTag);
-            return;
+            return; // 8.5 discard silently. TODO review exception rules 8.5.1
         }
         bool allowMoreChunks = true;
         int  hundledChunks   = 0;
@@ -199,6 +216,10 @@ namespace SctpDc { namespace Sctp {
 
     void Association::write(quint16 streamId, bool unordered, const QByteArray &payloadProto, const QByteArray &data)
     {
+        if (state_ == State::Closed || state_ == State::ShutdownSent || state_ == State::ShutdownAckSent) {
+            setError(Error::WrongState);
+            return;
+        }
         int   offset = 0;
         auto &ssn    = stream2ssn_[streamId];
         while (offset < data.size()) {
@@ -296,12 +317,21 @@ namespace SctpDc { namespace Sctp {
 
     void Association::incomingChunk(const SackChunk &chunk)
     {
-        if (!(state_ == State::Established || state_ == State::ShutdownPending || state_ == State::ShutdownSent)) {
+        if (!(state_ == State::Established || state_ == State::ShutdownPending || state_ == State::ShutdownReceived)) {
             return; // we don't care
         }
         auto gaps = chunk.gaps();
         auto dups = chunk.dups();
         // TODO
+    }
+
+    void Association::incomingChunk(const DataChunk &chunk)
+    {
+        if (!(state_ == State::Established || state_ == State::ShutdownPending || state_ == State::ShutdownSent)) {
+            return; // we don't care
+        }
+        // - defragmentation
+        // - reorderingController
     }
 
 }}
