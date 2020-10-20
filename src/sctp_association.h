@@ -83,6 +83,7 @@ namespace SctpDc { namespace Sctp {
         void       trySend();
         QByteArray makeStateCookie();
         void       setError(Error error);
+        void       initRemote(const InitChunk &chunk);
 
         void incomingChunk(const InitChunk &chunk);
         void incomingChunk(const InitAckChunk &chunk);

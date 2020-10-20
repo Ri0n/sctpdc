@@ -246,13 +246,7 @@ namespace SctpDc { namespace Sctp {
 
     void Association::incomingChunk(const InitChunk &chunk)
     {
-        lastRcvdTsn_          = chunk.initialTsn() - 1;
-        peerVerificationTag_  = chunk.initiateTag();
-        remoteWindowCredit_   = chunk.receiverWindowCredit();
-        ssthresh_             = remoteWindowCredit_;
-        inboundStreamsCount_  = chunk.inboundStreamsCount();
-        outboundStreamsCount_ = chunk.outboundStreamsCount();
-
+        initRemote(chunk);
         if (peerVerificationTag_ == 0) {
             abort(Error::VerificationTag);
             return;
@@ -274,6 +268,18 @@ namespace SctpDc { namespace Sctp {
         sendFirstPriority(packet);
     }
 
+    void Association::initRemote(const InitChunk &chunk)
+    {
+        lastRcvdTsn_          = chunk.initialTsn() - 1;
+        peerVerificationTag_  = chunk.initiateTag();
+        remoteWindowCredit_   = chunk.receiverWindowCredit();
+        ssthresh_             = remoteWindowCredit_;
+        inboundStreamsCount_  = chunk.inboundStreamsCount();
+        outboundStreamsCount_ = chunk.outboundStreamsCount();
+        cwnd_                 = std::min(4 * mtu_, std::max(2 * mtu_, 4380u));
+        // TODO make congestion window controller
+    }
+
     void Association::incomingChunk(const InitAckChunk &chunk)
     {
         const auto cookie = chunk.parameter<CookieParameter>();
@@ -282,13 +288,7 @@ namespace SctpDc { namespace Sctp {
             return;
         }
 
-        // TODO it's a dup of the init block above
-        lastRcvdTsn_          = chunk.initialTsn() - 1;
-        peerVerificationTag_  = chunk.initiateTag();
-        remoteWindowCredit_   = chunk.receiverWindowCredit();
-        ssthresh_             = remoteWindowCredit_;
-        inboundStreamsCount_  = chunk.inboundStreamsCount();
-        outboundStreamsCount_ = chunk.outboundStreamsCount();
+        initRemote(chunk);
 
         Packet packet;
         packet.appendChunk<CookieEchoChunk>(cookie.value());
