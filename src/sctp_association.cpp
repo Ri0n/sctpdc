@@ -36,7 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 namespace SctpDc { namespace Sctp {
     void Association::populateHeader(Packet &packet)
     {
-        packet.setVerificationTag(tagToSend_);
+        packet.setVerificationTag(peerVerificationTag_);
         packet.setSourcePort(sourcePort_);
         packet.setDestinationPort(destinationPort_);
         packet.setChecksum();
@@ -93,12 +93,12 @@ namespace SctpDc { namespace Sctp {
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
         quint64 privKey64 = QRandomGenerator::global()->generate64();
 #else
-        quint64 privKey64 = quint32(qrand()) << 32 + quint32(qrand());
+        quint64 privKey64  = quint32(qrand()) << 32 + quint32(qrand());
 #endif
         privKey = QByteArray(reinterpret_cast<const char *>(&privKey64), sizeof(privKey64));
         QByteArray  tcb;
         QDataStream tcbStream(&tcb, QIODevice::WriteOnly);
-        tcbStream << tagToCheck_ << tagToSend_ << localTsn_ << remoteTsn_ << inboundStreamsCount_
+        tcbStream << myVerificationTag_ << peerVerificationTag_ << nextTsn_ << lastRcvdTsn_ << inboundStreamsCount_
                   << outboundStreamsCount_;
         return tcb + QMessageAuthenticationCode::hash(tcb, privKey, QCryptographicHash::Sha1);
     }
@@ -108,13 +108,13 @@ namespace SctpDc { namespace Sctp {
     {
         timer_.start();
 #if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
-        tagToCheck_ = QRandomGenerator::global()->generate();
+        myVerificationTag_ = QRandomGenerator::global()->generate();
 #else
-        tagToCheck_       = quint32(qrand());
+        myVerificationTag_ = quint32(qrand());
 #endif
-        if (!tagToCheck_)
-            tagToCheck_++;
-        localTsn_ = tagToCheck_;
+        if (!myVerificationTag_)
+            myVerificationTag_++;
+        nextTsn_ = myVerificationTag_;
     }
 
     void Association::associate()
@@ -127,8 +127,8 @@ namespace SctpDc { namespace Sctp {
         Packet packet;
         auto   chunk = packet.appendChunk<InitChunk>();
 
-        chunk.setInitiateTag(tagToCheck_);
-        chunk.setInitialTsn(localTsn_);
+        chunk.setInitiateTag(myVerificationTag_);
+        chunk.setInitialTsn(nextTsn_);
         chunk.setReceiverWindowCredit(localWindowCredit_);
         chunk.setInboundStreamsCount(inboundStreamsCount_);
         chunk.setOutboundStreamsCount(outboundStreamsCount_);
@@ -166,7 +166,7 @@ namespace SctpDc { namespace Sctp {
             return; // ignore non-sctp or broken sctp
         }
         auto verificationTag = pkt.verificationTag();
-        if (state_ != State::Closed && verificationTag != tagToCheck_) {
+        if (state_ != State::Closed && verificationTag != myVerificationTag_) {
             return; // 8.5 discard silently. TODO review exception rules 8.5.1
         }
         bool allowMoreChunks = true;
@@ -233,12 +233,12 @@ namespace SctpDc { namespace Sctp {
             chunk.setUserData(QByteArray::fromRawData(data.constData() + offset, toTake));
             chunk.setPayloadProtocol(payloadProto);
             chunk.setStreamIdentifier(streamId);
-            chunk.setTsn(localTsn_);
+            chunk.setTsn(nextTsn_);
             if (!unordered) {
                 chunk.setStreamSequenceNumber(ssn);
             }
             dataSendQueue_.push_back(transfer);
-            localTsn_++;
+            nextTsn_++;
         }
         ssn++;
         trySend();
@@ -246,13 +246,14 @@ namespace SctpDc { namespace Sctp {
 
     void Association::incomingChunk(const InitChunk &chunk)
     {
-        remoteTsn_            = chunk.initialTsn();
-        tagToSend_            = chunk.initiateTag();
+        lastRcvdTsn_          = chunk.initialTsn() - 1;
+        peerVerificationTag_  = chunk.initiateTag();
         remoteWindowCredit_   = chunk.receiverWindowCredit();
+        ssthresh_             = remoteWindowCredit_;
         inboundStreamsCount_  = chunk.inboundStreamsCount();
         outboundStreamsCount_ = chunk.outboundStreamsCount();
 
-        if (tagToSend_ == 0) {
+        if (peerVerificationTag_ == 0) {
             abort(Error::VerificationTag);
             return;
         }
@@ -260,8 +261,8 @@ namespace SctpDc { namespace Sctp {
         Packet packet;
         auto   ack = packet.appendChunk<InitAckChunk>();
 
-        ack.setInitiateTag(tagToCheck_);
-        ack.setInitialTsn(localTsn_);
+        ack.setInitiateTag(myVerificationTag_);
+        ack.setInitialTsn(nextTsn_);
         ack.setReceiverWindowCredit(localWindowCredit_);
         ack.setInboundStreamsCount(inboundStreamsCount_);
         ack.setOutboundStreamsCount(outboundStreamsCount_);
@@ -280,6 +281,15 @@ namespace SctpDc { namespace Sctp {
             abort(Error::InvalidCookie);
             return;
         }
+
+        // TODO it's a dup of the init block above
+        lastRcvdTsn_          = chunk.initialTsn() - 1;
+        peerVerificationTag_  = chunk.initiateTag();
+        remoteWindowCredit_   = chunk.receiverWindowCredit();
+        ssthresh_             = remoteWindowCredit_;
+        inboundStreamsCount_  = chunk.inboundStreamsCount();
+        outboundStreamsCount_ = chunk.outboundStreamsCount();
+
         Packet packet;
         packet.appendChunk<CookieEchoChunk>(cookie.value());
         state_ = State::CookieEchoed;

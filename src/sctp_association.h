@@ -98,29 +98,33 @@ namespace SctpDc { namespace Sctp {
             QByteArray data;
         };
 
-        State                         state_ = State::Closed;
+        State                         state_   = State::Closed;
+        quint8                        ackState = 0;
         QByteArray                    privKey; // for cookie HMAC
         QElapsedTimer                 timer_;
         std::deque<Packet>            incomingPackets_;
         std::deque<Packet>            outgoingPackets_;
         std::deque<UnackChunk>        dataSendQueue_;
         std::deque<UnackChunk>        controlSendQueue_;
-        std::map<quint32, UnackChunk> unacknowledgedChunks; // outgoing chunks timestamp => chunk
-        std::map<quint16, quint16>    stream2ssn_;          // stream id to stream seqnum
-        quint32                       tagToCheck_ = 0;      // in incoming packets. local-generated.
-        quint32                       tagToSend_  = 0; // with each outgoing sctp packet. to be checked on remote side
-        quint32                       localTsn_   = 0;
-        quint32                       remoteTsn_  = 0;
-        quint16                       sourcePort_ = 0;
-        quint16                       destinationPort_      = 0;
-        quint16                       inboundStreamsCount_  = 65535;
-        quint16                       outboundStreamsCount_ = 65535;
-        quint32                       localWindowCredit_    = 512 * 1024;
-        quint32                       localUsedCredit_      = 0; // total bytes we not yet acknowledged
-        quint32                       remoteWindowCredit_   = 512 * 1024;
-        quint32                       remoteUsedCredit_     = 0;    // total sent but not yet aknowledged bytes
-        quint32                       mtu_                  = 1400; // for loopback may be way more
-        Error                         error_                = Error::None;
+        std::map<quint32, UnackChunk> unacknowledgedChunks;   // outgoing chunks timestamp => chunk
+        std::map<quint16, quint16>    stream2ssn_;            // stream id to stream seqnum
+        quint32                       myVerificationTag_ = 0; // in incoming packets. local-generated.
+        quint32 peerVerificationTag_  = 0; // with each outgoing sctp packet. to be checked on remote side
+        quint32 nextTsn_              = 0;
+        quint32 lastRcvdTsn_          = 0;
+        quint16 sourcePort_           = 0;
+        quint16 destinationPort_      = 0;
+        quint16 inboundStreamsCount_  = 65535;
+        quint16 outboundStreamsCount_ = 65535;
+        quint32 localWindowCredit_    = 512 * 1024;
+        quint32 localUsedCredit_      = 0; // total bytes we not yet acknowledged
+        quint32 remoteWindowCredit_   = 512 * 1024;
+        quint32 remoteUsedCredit_     = 0;    // total sent but not yet aknowledged bytes
+        quint32 mtu_                  = 1400; // for loopback may be way more
+        quint32 cwnd_;                        // Congestion control window
+        quint32 ssthresh_;                    // Slow-start threshold
+        quint32 partialBytesAcked;            // TODO not used?
+        Error   error_ = Error::None;
     };
 
 } // namespace Sctp
